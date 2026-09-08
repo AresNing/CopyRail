@@ -18,7 +18,7 @@ CopyRail 是一个本地优先的剪贴板工作空间，用来保存、搜索�
 
 上述为实现范围，完整跨应用粘贴、拖放、复杂富文本、多屏及 VoiceOver 仍有未验收项。请参阅 [验证记录](docs/verification.md) 和 [安全与隐私说明](SECURITY.md)。
 
-主分支后续修复正在验证跨桌面快捷键唤起：窗口归属和后台焦点判断已调整，本机构建与回归检查通过；受影响桌面的原生复测结果尚待确认。详见 [验证记录](docs/verification.md#post-mvp-candidate-current-space-invocation-2026-09-08)。
+跨桌面快捷键唤起已在本机 beta.9 通过用户复测：同一屏幕的另一个普通桌面可就地弹出、输入搜索，并再次按快捷键收起。修复采用不激活应用的原生浮动面板，并修正启动阶段覆盖应用模式的问题；全屏空间和多屏场景仍待验收。详见 [验证记录](docs/verification.md#post-mvp-fix-current-space-invocation-2026-09-08)。
 
 ## 从源码运行
 

@@ -387,6 +387,7 @@ fn install_native_positioning(window: &WebviewWindow) -> Result<(), String> {
         let Some(native) = (unsafe { (pointer as *const NSWindow).as_ref() }) else {
             return;
         };
+        trace_invocation(native, mtm, "space-changed");
         if should_dismiss_for_space_change(
             native.isVisible(),
             native.inLiveResize(),
@@ -775,8 +776,8 @@ fn invocation_collection_behavior(
 ) -> objc2_app_kit::NSWindowCollectionBehavior {
     use objc2_app_kit::NSWindowCollectionBehavior as Behavior;
     // MoveToActiveSpace alone does not give a reused background window
-    // membership in the caller's Space before application activation. Joining
-    // Spaces first prevents activation from taking the user to the old one.
+    // membership in the caller's Space before application activation. This is
+    // paired with accessory activation and ordering before focus below.
     // The workspace observer dismisses the panel when the user changes Space.
     current.remove(
         Behavior::MoveToActiveSpace | Behavior::FullScreenPrimary | Behavior::FullScreenNone,
@@ -820,8 +821,9 @@ fn should_toggle_hide(
     focused: bool,
     active_space: bool,
     application_active: bool,
+    nonactivating_panel: bool,
 ) -> bool {
-    visible && focused && active_space && application_active
+    visible && focused && active_space && (application_active || nonactivating_panel)
 }
 
 #[cfg(any(target_os = "macos", test))]
@@ -846,6 +848,57 @@ fn application_is_active() -> tauri::Result<bool> {
     }
 }
 
+/// Debug builds retain a small local trace of our own window flags only. No
+/// clipboard content, window titles, other apps, or desktop identifiers enter it.
+#[cfg(target_os = "macos")]
+fn trace_invocation(
+    native: &objc2_app_kit::NSWindow,
+    mtm: objc2::MainThreadMarker,
+    stage: &'static str,
+) {
+    #[cfg(debug_assertions)]
+    {
+        use std::{fs::OpenOptions, io::Write, os::unix::fs::OpenOptionsExt};
+        thread_local! {
+            static TRACE: std::cell::RefCell<Option<(std::fs::File, usize)>> =
+                std::cell::RefCell::new(OpenOptions::new().write(true).create_new(true)
+                    .mode(0o600).open(std::env::temp_dir().join(format!(
+                        "copyrail-window-{}.jsonl", std::process::id()
+                    ))).ok().map(|file| (file, 0)));
+        }
+        let application = objc2_app_kit::NSApplication::sharedApplication(mtm);
+        let record = serde_json::json!({
+            "stage": stage,
+            "visible": native.isVisible(),
+            "onActiveSpace": native.isOnActiveSpace(),
+            "key": native.isKeyWindow(),
+            "applicationActive": application.isActive(),
+            "accessory": application.activationPolicy()
+                == objc2_app_kit::NSApplicationActivationPolicy::Accessory,
+            "collectionBehavior": native.collectionBehavior().0,
+            "nonactivatingPanel": native.styleMask().contains(objc2_app_kit::NSWindowStyleMask::NonactivatingPanel),
+        });
+        TRACE.with(|slot| {
+            let mut trace = slot.borrow_mut();
+            let Some((file, count)) = trace.as_mut() else {
+                return;
+            };
+            // Bound the debug trace even when a local build runs for days.
+            if *count >= 128 {
+                use std::io::Seek;
+                if file.set_len(0).and_then(|()| file.rewind()).is_err() {
+                    return;
+                }
+                *count = 0;
+            }
+            let _ = writeln!(file, "{record}");
+            *count += 1;
+        });
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = (native, mtm, stage);
+}
+
 pub fn show_main_window(window: &WebviewWindow) -> tauri::Result<()> {
     // Every user invocation (shortcut, tray, Window menu, reopen, IPC) goes
     // through here. Capture before activating our own window; unknown/self
@@ -859,8 +912,40 @@ pub fn show_main_window(window: &WebviewWindow) -> tauri::Result<()> {
     }
     configure_spaces(window)?;
     position_at_screen_bottom(window)?;
-    window.show()?;
-    window.set_focus()
+    present_on_current_space(window)
+}
+
+fn present_on_current_space(window: &WebviewWindow) -> tauri::Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSWindow};
+        let mtm = objc2::MainThreadMarker::new()
+            .ok_or_else(|| std::io::Error::other("窗口唤起必须在主线程执行。"))?;
+        let application = NSApplication::sharedApplication(mtm);
+        // Keep the utility policy effective even after a framework reopen or
+        // other native window changes. Setting policy does not activate it.
+        if application.activationPolicy() != NSApplicationActivationPolicy::Accessory
+            && !application.setActivationPolicy(NSApplicationActivationPolicy::Accessory)
+        {
+            return Err(std::io::Error::other("无法设置原生面板的应用模式。").into());
+        }
+        let native = unsafe { (window.ns_window()? as *const NSWindow).as_ref() }
+            .ok_or_else(|| std::io::Error::other("窗口已关闭。"))?;
+        trace_invocation(native, mtm, "before-order");
+        // A nonactivating NSPanel takes keyboard focus without activating the
+        // application. Never call Tauri set_focus / NSApplication activate here:
+        // either would reintroduce application-driven Space switching.
+        native.orderFrontRegardless();
+        trace_invocation(native, mtm, "after-order");
+        native.makeKeyWindow();
+        trace_invocation(native, mtm, "after-focus");
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        window.show()?;
+        window.set_focus()
+    }
 }
 
 pub fn hide_main_window(window: &WebviewWindow) -> tauri::Result<()> {
@@ -869,7 +954,15 @@ pub fn hide_main_window(window: &WebviewWindow) -> tauri::Result<()> {
         .paste_target
         .invalidate()
         .map_err(std::io::Error::other)?;
-    window.hide()
+    window.hide()?;
+    #[cfg(target_os = "macos")]
+    if let Some(mtm) = objc2::MainThreadMarker::new()
+        && let Some(native) =
+            unsafe { (window.ns_window()? as *const objc2_app_kit::NSWindow).as_ref() }
+    {
+        trace_invocation(native, mtm, "hidden");
+    }
+    Ok(())
 }
 
 pub fn apply_desktop_preferences(
@@ -909,6 +1002,7 @@ pub fn toggle_main_window(app: &tauri::AppHandle) -> tauri::Result<()> {
         window.is_focused()?,
         on_active_space(&window)?,
         application_is_active()?,
+        cfg!(target_os = "macos"),
     ) {
         hide_main_window(&window)
     } else {
@@ -921,13 +1015,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn nonactivating_panel_toggles_while_its_application_stays_inactive() {
+        assert!(should_toggle_hide(true, true, true, false, true));
+        assert!(!should_toggle_hide(true, false, true, false, true));
+        assert!(!should_toggle_hide(false, true, true, false, true));
+        assert!(!should_toggle_hide(true, true, false, false, true));
+        assert!(!should_toggle_hide(true, true, true, false, false));
+    }
+
+    #[test]
     fn shortcut_only_hides_a_focused_window_on_the_current_space() {
         for visible in [false, true] {
             for focused in [false, true] {
-                assert!(!should_toggle_hide(visible, focused, false, true));
-                assert!(!should_toggle_hide(visible, focused, true, false));
+                assert!(!should_toggle_hide(visible, focused, false, true, false));
+                assert!(!should_toggle_hide(visible, focused, true, false, false));
                 assert_eq!(
-                    should_toggle_hide(visible, focused, true, true),
+                    should_toggle_hide(visible, focused, true, true, false),
                     visible && focused
                 );
             }

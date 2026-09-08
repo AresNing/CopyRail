@@ -14,9 +14,13 @@ The PDFs contain synthetic test content and a documented synthetic test password
 
 ## Rust dependencies
 
-[docs/dependencies.md](docs/dependencies.md) inventories the registry package versions and declared SPDX license expressions resolved by Cargo.lock. This includes optional, build, test and other-platform dependencies; it is not a list of everything linked into the macOS application. Dependencies are fetched from crates.io, not vendored in this source release. Their original license and notice files remain applicable.
+[docs/dependencies.md](docs/dependencies.md) inventories the registry package versions and declared SPDX license expressions resolved by Cargo.lock. This includes optional, build, test and other-platform dependencies; it is not a list of everything linked into the macOS application. Registry dependencies are fetched from crates.io; the macOS panel adapter is fetched from the pinned Git revision below. Dependency source is not vendored in this release. Their original license and notice files remain applicable.
 
 Five packages declare MPL-2.0: `cssparser`, `cssparser-macros`, `dtoa-short`, `option-ext` and `selectors`. A distributor of a compiled application must satisfy the applicable dependency terms, including MPL-covered source availability. The source links in the inventory identify the exact upstream versions; they do not replace any redistribution obligations. This MVP release publishes source only.
+
+## macOS panel adapter
+
+`tauri-nspanel` 2.1.0 is pinned to upstream commit [c9ec2130422200f0863b23dfdad02b133a529b07](https://github.com/ahkohd/tauri-nspanel/tree/c9ec2130422200f0863b23dfdad02b133a529b07). Its manifest does not declare an SPDX expression; the repository supplies MIT and Apache-2.0 license files. CopyRail uses it under the MIT license and includes the original [MIT notice](licenses/tauri-nspanel-MIT.txt), including Victor Aremu's copyright. No floating branch is used.
 
 ## Graphics and platform resources
 

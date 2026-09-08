@@ -53,6 +53,7 @@ paste-sync = { path = "../../../crates/paste-sync" }
 tempfile = "3.27.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
+tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", rev = "c9ec2130422200f0863b23dfdad02b133a529b07" }
 objc2.workspace = true
 block2.workspace = true
 objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["CGContext", "CGBitmapContext", "CGColorSpace", "CGDataProvider", "CGImage", "CGPDFDocument", "CGPDFPage"] }

@@ -1,6 +1,6 @@
 # Dependency inventory
 
-Snapshot: 2026-09-08. Generated from `cargo metadata --locked` and the committed Cargo.lock; 589 crates.io package versions across all targets/features. SPDX expressions are upstream declarations, not an independent legal audit. Workspace crates are Apache-2.0.
+Snapshot: 2026-09-08. Generated from `cargo metadata --locked` and the committed Cargo.lock; 589 crates.io package versions and one pinned Git package across all targets/features. SPDX expressions are upstream declarations, not an independent legal audit. Workspace crates are Apache-2.0.
 
 This source release does not vendor these packages or distribute an application binary. See [third-party notices](../THIRD_PARTY_NOTICES.md) for redistribution boundaries and [verification](verification.md) for advisory findings.
 
@@ -421,6 +421,7 @@ This source release does not vendor these packages or distribute an application 
 | `tauri-build` | [2.6.3](https://crates.io/crates/tauri-build/2.6.3) | Apache-2.0 OR MIT |
 | `tauri-codegen` | [2.6.3](https://crates.io/crates/tauri-codegen/2.6.3) | Apache-2.0 OR MIT |
 | `tauri-macros` | [2.6.3](https://crates.io/crates/tauri-macros/2.6.3) | Apache-2.0 OR MIT |
+| `tauri-nspanel` | [2.1.0 / c9ec213](https://github.com/ahkohd/tauri-nspanel/tree/c9ec2130422200f0863b23dfdad02b133a529b07) | Manifest undeclared; upstream MIT and Apache-2.0 files; distributed under MIT |
 | `tauri-plugin` | [2.6.3](https://crates.io/crates/tauri-plugin/2.6.3) | Apache-2.0 OR MIT |
 | `tauri-plugin-autostart` | [2.5.1](https://crates.io/crates/tauri-plugin-autostart/2.5.1) | Apache-2.0 OR MIT |
 | `tauri-plugin-dialog` | [2.7.2](https://crates.io/crates/tauri-plugin-dialog/2.7.2) | Apache-2.0 OR MIT |

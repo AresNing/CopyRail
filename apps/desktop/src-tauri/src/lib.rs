@@ -30,6 +30,9 @@ mod native_menu;
 // Release test binaries must exclude the webview probe too, not just the app.
 #[cfg(target_os = "macos")]
 #[allow(unsafe_code)]
+mod native_panel;
+#[cfg(target_os = "macos")]
+#[allow(unsafe_code)]
 mod native_space_events;
 #[cfg(debug_assertions)]
 mod native_tab_diagnostics;
@@ -127,6 +130,8 @@ fn run_with_profile(native_test: Option<Arc<native_test::NativeTestProfile>>) {
         }
     }
     let builder = tauri::Builder::default();
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(tauri_nspanel::init());
     let builder = if isolated {
         builder
     } else {
@@ -244,6 +249,10 @@ fn run_with_profile(native_test: Option<Arc<native_test::NativeTestProfile>>) {
             handler(invoke)
         })
         .setup(move |app| {
+            // This is a tray utility. skipTaskbar does not set the macOS
+            // activation policy; a regular app can return to its previous Space.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             let shortcut_status = shortcut::register_or_report(app.handle(), isolated);
             let store = if let Some(profile) = &native_test {
                 Arc::new(profile.open_seeded_store().map_err(std::io::Error::other)?)
@@ -328,6 +337,8 @@ fn run_with_profile(native_test: Option<Arc<native_test::NativeTestProfile>>) {
                 .build(app)?;
 
             if let Some(window) = app.get_webview_window("main") {
+                #[cfg(target_os = "macos")]
+                native_panel::install(&window)?;
                 window::apply_frame_style(&window).map_err(std::io::Error::other)?;
                 window::apply_desktop_preferences(&window, desktop_preferences)?;
                 window::install_positioning(&window).map_err(std::io::Error::other)?;
@@ -340,7 +351,6 @@ fn run_with_profile(native_test: Option<Arc<native_test::NativeTestProfile>>) {
                                 profile.window_title()
                             }),
                     )?;
-                    window::show_main_window(&window)?;
                 }
             }
             #[cfg(target_os = "macos")]
@@ -351,7 +361,24 @@ fn run_with_profile(native_test: Option<Arc<native_test::NativeTestProfile>>) {
         })
         .build(context)
         .expect("failed to run CopyRail desktop application");
+    // setup runs before Tao's applicationDidFinishLaunching in this build/run
+    // path. Setting only the live NSApplication policy there is overwritten
+    // by Tao's launch policy. Configure the owned runtime before entering run.
+    #[cfg(target_os = "macos")]
+    let app = {
+        let mut app = app;
+        app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+        app
+    };
     app.run(move |app, event| {
+        // Wait for the native launch phase to finish before first ordering.
+        // Otherwise Tao's startup activation can reorder our prepared panel.
+        if matches!(event, tauri::RunEvent::Ready)
+            && let Some(window) = app.get_webview_window("main")
+            && let Err(error) = window::show_main_window(&window)
+        {
+            eprintln!("CopyRail could not show its initial panel: {error}");
+        }
         #[cfg(target_os = "macos")]
         if matches!(
             event,
