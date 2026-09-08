@@ -18,6 +18,8 @@ CopyRail 是一个本地优先的剪贴板工作空间，用来保存、搜索�
 
 上述为实现范围，完整跨应用粘贴、拖放、复杂富文本、多屏及 VoiceOver 仍有未验收项。请参阅 [验证记录](docs/verification.md) 和 [安全与隐私说明](SECURITY.md)。
 
+主分支后续修复正在验证跨桌面快捷键唤起：窗口归属和后台焦点判断已调整，本机构建与回归检查通过；受影响桌面的原生复测结果尚待确认。详见 [验证记录](docs/verification.md#post-mvp-candidate-current-space-invocation-2026-09-08)。
+
 ## 从源码运行
 
 需要 macOS、Xcode Command Line Tools、[Rustup](https://rustup.rs/) 和 Trunk。当前验证工具链为 Rust **1.98.0**、Trunk **0.21.14**；仓库固定 Rust 工具链并提交 Cargo.lock。首次构建会下载公开依赖。

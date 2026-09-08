@@ -2,7 +2,15 @@
 
 Snapshot: **2026-09-08**, source release **v0.1.0-mvp.1**. Platform checked locally: Apple Silicon macOS, Rust 1.98.0, Trunk 0.21.14. This record separates automated checks from native acceptance and distribution readiness.
 
-## Final source checks
+## Post-MVP candidate: current-Space invocation (2026-09-08)
+
+The user reported that invoking the shortcut on another ordinary desktop still returned to the original desktop. The main panel now joins Spaces before activation instead of depending on `MoveToActiveSpace`; a scoped workspace notification dismisses it on a Space change without interrupting native tracking or resizing. Shortcut toggling now also checks application activation, because a background NSWindow can retain key-window state. Original clipboard content and database schema are unchanged.
+
+Local validation: **358 Rust tests passed, 4 ignored**, formatting and strict host/WASM Clippy passed, frontend and arm64 app bundle built with CloudKit disabled. Three final compiled-UI groups (window grid, shortcut fallback and paste outcome) passed against the bundled frontend. The first Clippy run exposed an unused helper in a native example; separating the workspace observer into its own module resolved it, and the complete checks were rerun successfully.
+
+Local beta.6 was launched after normal exit of beta.5, with a single ordinary process, readable existing history and a registered shortcut. The panel was hidden after inspection. **The affected cross-desktop scenario is awaiting the user's reproduction result; native success is not yet claimed.** Accessibility permission on the new ad-hoc build is pending; no system permission or real clipboard write was performed for this check. No signed/notarized binary is published.
+
+## Initial MVP source checks
 
 - `./scripts/check.sh`: passed. **357 Rust tests passed, 4 intentionally ignored**; formatting, host/WASM Clippy with warnings denied, and compiled frontend passed.
 - `cargo check -p pasters-desktop --no-default-features --locked`: passed with the pinned toolchain, checking the MVP configuration without CloudKit. All eight workspace manifests also resolve from the staged source export.
@@ -16,7 +24,7 @@ Three ignored tests require the macOS pasteboard server and fresh private synthe
 
 ## Native evidence and remaining acceptance
 
-The previous local beta.5 used this same application implementation. Its AppKit drag-preview render check passed 26 synthetic cases. Native startup from its delivery bundle, a single ordinary instance, history readability, the new card layout, empty-state action and shortcut registration were observed locally.
+The initial MVP implementation matched the previous local beta.5. Its AppKit drag-preview render check passed 26 synthetic cases. Native startup from its delivery bundle, a single ordinary instance, history readability, the new card layout, empty-state action and shortcut registration were observed locally.
 
 **Direct-paste permission on that build was pending, and actual cross-application paste was not performed.** Complete capture → search → restart → safe paste, permission recovery, full drag/drop, complex rich text/PDF, multi-display/window recovery, VoiceOver and long-running/performance matrices remain open. Browser results and native render tests do not close those items. Shared/multi-device sync remains out of scope.
 

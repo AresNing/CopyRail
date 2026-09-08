@@ -28,6 +28,9 @@ mod native_drop_feedback;
 #[allow(unsafe_code)]
 mod native_menu;
 // Release test binaries must exclude the webview probe too, not just the app.
+#[cfg(target_os = "macos")]
+#[allow(unsafe_code)]
+mod native_space_events;
 #[cfg(debug_assertions)]
 mod native_tab_diagnostics;
 mod native_test;

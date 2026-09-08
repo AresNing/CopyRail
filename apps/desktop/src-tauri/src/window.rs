@@ -345,6 +345,7 @@ fn position_portable_window(
 thread_local! {
     static APPLYING_FRAME: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static WINDOW_EVENTS: std::cell::RefCell<Option<crate::native_window_events::WindowEvents>> = const { std::cell::RefCell::new(None) };
+    static SPACE_EVENTS: std::cell::RefCell<Option<crate::native_space_events::ActiveSpaceEvents>> = const { std::cell::RefCell::new(None) };
 }
 
 #[cfg(target_os = "macos")]
@@ -371,6 +372,30 @@ fn install_native_positioning(window: &WebviewWindow) -> Result<(), String> {
     );
     let previous = WINDOW_EVENTS.with(|slot| slot.replace(Some(observers)));
     drop(previous);
+    let app = window.app_handle().clone();
+    let label = window.label().to_string();
+    let observer = crate::native_space_events::ActiveSpaceEvents::subscribe(mtm, move || {
+        let Some(window) = app.get_webview_window(&label) else {
+            return;
+        };
+        let Some(mtm) = objc2::MainThreadMarker::new() else {
+            return;
+        };
+        let Ok(pointer) = window.ns_window() else {
+            return;
+        };
+        let Some(native) = (unsafe { (pointer as *const NSWindow).as_ref() }) else {
+            return;
+        };
+        if should_dismiss_for_space_change(
+            native.isVisible(),
+            native.inLiveResize(),
+            native_interaction_owns_escape(mtm),
+        ) {
+            let _ = hide_main_window(&window);
+        }
+    });
+    drop(SPACE_EVENTS.with(|slot| slot.replace(Some(observer))));
     Ok(())
 }
 
@@ -669,6 +694,7 @@ pub fn install_positioning(window: &WebviewWindow) -> Result<(), String> {
             remove_preview_escape();
             let observers = WINDOW_EVENTS.with(|slot| slot.take());
             drop(observers);
+            drop(SPACE_EVENTS.with(|slot| slot.take()));
         }
         // Keep event evidence alongside the synchronous native frame read.
         if let tauri::WindowEvent::Moved(position) = event
@@ -748,11 +774,14 @@ fn invocation_collection_behavior(
     mut current: objc2_app_kit::NSWindowCollectionBehavior,
 ) -> objc2_app_kit::NSWindowCollectionBehavior {
     use objc2_app_kit::NSWindowCollectionBehavior as Behavior;
-    // These two groups are mutually exclusive. Keep unrelated window policy.
+    // MoveToActiveSpace alone does not give a reused background window
+    // membership in the caller's Space before application activation. Joining
+    // Spaces first prevents activation from taking the user to the old one.
+    // The workspace observer dismisses the panel when the user changes Space.
     current.remove(
-        Behavior::CanJoinAllSpaces | Behavior::FullScreenPrimary | Behavior::FullScreenNone,
+        Behavior::MoveToActiveSpace | Behavior::FullScreenPrimary | Behavior::FullScreenNone,
     );
-    current.insert(Behavior::MoveToActiveSpace | Behavior::FullScreenAuxiliary);
+    current.insert(Behavior::CanJoinAllSpaces | Behavior::FullScreenAuxiliary);
     current
 }
 
@@ -786,8 +815,35 @@ fn on_active_space(window: &WebviewWindow) -> tauri::Result<bool> {
     }
 }
 
-fn should_toggle_hide(visible: bool, focused: bool, active_space: bool) -> bool {
-    visible && focused && active_space
+fn should_toggle_hide(
+    visible: bool,
+    focused: bool,
+    active_space: bool,
+    application_active: bool,
+) -> bool {
+    visible && focused && active_space && application_active
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn should_dismiss_for_space_change(
+    visible: bool,
+    live_resize: bool,
+    native_interaction: bool,
+) -> bool {
+    visible && !live_resize && !native_interaction
+}
+
+fn application_is_active() -> tauri::Result<bool> {
+    #[cfg(target_os = "macos")]
+    {
+        let mtm = objc2::MainThreadMarker::new()
+            .ok_or_else(|| std::io::Error::other("桌面状态必须在主线程读取。"))?;
+        Ok(objc2_app_kit::NSApplication::sharedApplication(mtm).isActive())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(true)
+    }
 }
 
 pub fn show_main_window(window: &WebviewWindow) -> tauri::Result<()> {
@@ -802,13 +858,6 @@ pub fn show_main_window(window: &WebviewWindow) -> tauri::Result<()> {
             .map_err(std::io::Error::other)?;
     }
     configure_spaces(window)?;
-    // A window can still be 'visible' and key on a different Space. Order it
-    // out before making it key again so activation moves it here, rather than
-    // considering the old window already shown. This is not a user dismissal
-    // and must not invalidate the target captured above.
-    if window.is_visible()? && !on_active_space(window)? {
-        window.hide()?;
-    }
     position_at_screen_bottom(window)?;
     window.show()?;
     window.set_focus()
@@ -859,6 +908,7 @@ pub fn toggle_main_window(app: &tauri::AppHandle) -> tauri::Result<()> {
         window.is_visible()?,
         window.is_focused()?,
         on_active_space(&window)?,
+        application_is_active()?,
     ) {
         hide_main_window(&window)
     } else {
@@ -874,9 +924,10 @@ mod tests {
     fn shortcut_only_hides_a_focused_window_on_the_current_space() {
         for visible in [false, true] {
             for focused in [false, true] {
-                assert!(!should_toggle_hide(visible, focused, false));
+                assert!(!should_toggle_hide(visible, focused, false, true));
+                assert!(!should_toggle_hide(visible, focused, true, false));
                 assert_eq!(
-                    should_toggle_hide(visible, focused, true),
+                    should_toggle_hide(visible, focused, true, true),
                     visible && focused
                 );
             }
@@ -885,17 +936,25 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn invocation_moves_to_the_active_space_without_conflicting_collection_flags() {
+    fn invocation_can_join_the_callers_space_without_conflicting_collection_flags() {
         use objc2_app_kit::NSWindowCollectionBehavior as Behavior;
         let original =
-            Behavior::CanJoinAllSpaces | Behavior::FullScreenPrimary | Behavior::Transient;
+            Behavior::MoveToActiveSpace | Behavior::FullScreenPrimary | Behavior::Transient;
         let actual = invocation_collection_behavior(original);
-        assert!(actual.contains(Behavior::MoveToActiveSpace | Behavior::FullScreenAuxiliary));
+        assert!(actual.contains(Behavior::CanJoinAllSpaces | Behavior::FullScreenAuxiliary));
         assert!(actual.contains(Behavior::Transient));
         assert!(!actual.intersects(
-            Behavior::CanJoinAllSpaces | Behavior::FullScreenPrimary | Behavior::FullScreenNone
+            Behavior::MoveToActiveSpace | Behavior::FullScreenPrimary | Behavior::FullScreenNone
         ));
         assert_eq!(invocation_collection_behavior(actual), actual);
+    }
+
+    #[test]
+    fn space_changes_dismiss_the_panel_without_interrupting_native_gestures() {
+        assert!(should_dismiss_for_space_change(true, false, false));
+        assert!(!should_dismiss_for_space_change(false, false, false));
+        assert!(!should_dismiss_for_space_change(true, true, false));
+        assert!(!should_dismiss_for_space_change(true, false, true));
     }
 
     #[test]
