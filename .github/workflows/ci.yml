@@ -23,8 +23,28 @@ jobs:
           node-version: 22
       - name: Install pinned Rust toolchain
         run: rustup show
-      - name: Install Trunk
-        run: cargo install trunk --version 0.21.14 --locked
+      - name: Install verified Trunk 0.21.14
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            arm64)
+              archive=trunk-aarch64-apple-darwin.tar.gz
+              checksum=764e299dd50d89442a4e96a236349f57961984b701e74d3dbdb39cd1c9f5101e
+              ;;
+            x86_64)
+              archive=trunk-x86_64-apple-darwin.tar.gz
+              checksum=f1ba0e3bbe24e0ae219c6d22c33e24e2825c1608dd27c2556e323495110f1a95
+              ;;
+            *) exit 1 ;;
+          esac
+          tool_dir="$RUNNER_TEMP/copyrail-tools"
+          mkdir -p "$tool_dir"
+          curl --fail --location --retry 3 "https://github.com/trunk-rs/trunk/releases/download/v0.21.14/$archive" -o "$tool_dir/$archive"
+          printf '%s  %s\n' "$checksum" "$tool_dir/$archive" | shasum -a 256 --check
+          tar -xzf "$tool_dir/$archive" -C "$tool_dir" trunk
+          "$tool_dir/trunk" --version
+          echo "$tool_dir" >> "$GITHUB_PATH"
       - name: Rust, Clippy and compiled frontend
         run: ./scripts/check.sh
       - name: Script tests
