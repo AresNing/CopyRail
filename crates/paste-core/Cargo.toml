@@ -1,0 +1,21 @@
+[package]
+name = "paste-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+paste-domain = { path = "../paste-domain" }
+paste-platform = { path = "../paste-platform" }
+paste-storage = { path = "../paste-storage" }
+thiserror.workspace = true
+
+[dev-dependencies]
+rusqlite.workspace = true
+tempfile = "3.27.0"
+uuid.workspace = true
+
+[lints]
+workspace = true

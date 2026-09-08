@@ -1,0 +1,26 @@
+[package]
+name = "paste-platform"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+image.workspace = true
+paste-domain = { path = "../paste-domain" }
+thiserror.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics.workspace = true
+macos-accessibility-client.workspace = true
+objc2.workspace = true
+objc2-app-kit = { workspace = true, features = ["NSApplication"] }
+objc2-foundation.workspace = true
+objc2-vision.workspace = true
+
+[dev-dependencies]
+uuid.workspace = true
+
+[lints]
+workspace = true

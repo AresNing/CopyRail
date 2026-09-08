@@ -1,0 +1,97 @@
+[workspace]
+members = [
+    "apps/desktop",
+    "apps/desktop/src-tauri",
+    "crates/paste-core",
+    "crates/paste-cloudkit",
+    "crates/paste-domain",
+    "crates/paste-platform",
+    "crates/paste-storage",
+    "crates/paste-sync",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "Apache-2.0"
+authors = ["CopyRail contributors"]
+
+[workspace.dependencies]
+base64 = "0.22.1"
+blake3 = "1.8.7"
+block2 = "0.6.2"
+chrono = { version = "0.4.45", features = ["serde"] }
+core-foundation = "0.10.1"
+core-foundation-sys = "0.8.7"
+core-graphics = { version = "0.25.0", features = ["elcapitan", "highsierra"] }
+drag = "2.1.1"
+image = { version = "0.25.8", default-features = false, features = ["jpeg", "png", "tiff"] }
+macos-accessibility-client = "0.0.2"
+objc2 = "0.6.4"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = [
+    "NSPasteboard",
+    "NSPasteboardItem",
+    "NSRunningApplication",
+    "NSWorkspace",
+    "libc",
+] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
+    "NSArray",
+    "NSData",
+    "NSDictionary",
+    "NSError",
+    "NSKeyedArchiver",
+    "NSObject",
+    "NSOperation",
+    "NSString",
+    "NSURL",
+    "std",
+] }
+objc2-cloud-kit = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "block2",
+    "CKAsset",
+    "CKContainer",
+    "CKDatabase",
+    "CKDatabaseOperation",
+    "CKError",
+    "CKFetchRecordZoneChangesOperation",
+    "CKModifyRecordZonesOperation",
+    "CKModifyRecordsOperation",
+    "CKOperation",
+    "CKRecord",
+    "CKRecordID",
+    "CKRecordZone",
+    "CKRecordZoneID",
+    "CKServerChangeToken",
+    "CKShare",
+    "CKShareMetadata",
+    "CKShareParticipant",
+] }
+objc2-vision = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "VNObservation",
+    "VNRecognizeTextRequest",
+    "VNRequest",
+    "VNRequestHandler",
+] }
+rusqlite = { version = "0.40.2", features = ["backup", "bundled", "chrono", "uuid"] }
+rmcp = { version = "3.1.4", features = ["server", "transport-io", "schemars"] }
+schemars = "1.2.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+thiserror = "2.0.20"
+tokio = { version = "1.53.1", features = ["io-std", "io-util", "macros", "rt-multi-thread", "time"] }
+uuid = { version = "1.26.0", features = ["js", "serde", "v4"] }
+url = "2.5.7"
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "warn"

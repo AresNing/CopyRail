@@ -1,0 +1,24 @@
+[package]
+name = "paste-storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+blake3.workspace = true
+chrono.workspace = true
+paste-domain = { path = "../paste-domain" }
+paste-sync = { path = "../paste-sync" }
+rusqlite.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+image.workspace = true
+tempfile = "3.27.0"
+
+[lints]
+workspace = true

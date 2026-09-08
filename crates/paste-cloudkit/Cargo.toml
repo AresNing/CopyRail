@@ -1,0 +1,29 @@
+[package]
+name = "paste-cloudkit"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+blake3.workspace = true
+paste-sync = { path = "../paste-sync" }
+serde_json.workspace = true
+thiserror.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+block2.workspace = true
+core-foundation.workspace = true
+core-foundation-sys.workspace = true
+objc2.workspace = true
+objc2-cloud-kit.workspace = true
+objc2-foundation.workspace = true
+
+[dev-dependencies]
+chrono.workspace = true
+paste-domain = { path = "../paste-domain" }
+
+[lints]
+workspace = true

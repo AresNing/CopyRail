@@ -1,0 +1,68 @@
+[package]
+name = "pasters-desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "pasters_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "pasters-desktop"
+path = "src/main.rs"
+
+[features]
+default = ["cloudkit"]
+cloudkit = ["dep:paste-cloudkit"]
+devtools = ["tauri/devtools"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+base64.workspace = true
+blake3.workspace = true
+chrono.workspace = true
+drag.workspace = true
+image.workspace = true
+paste-core = { path = "../../../crates/paste-core" }
+paste-cloudkit = { path = "../../../crates/paste-cloudkit", optional = true }
+paste-domain = { path = "../../../crates/paste-domain" }
+paste-platform = { path = "../../../crates/paste-platform" }
+paste-storage = { path = "../../../crates/paste-storage" }
+plist = "1.10.0"
+rmcp.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "2.11.5", features = ["macos-private-api", "tray-icon", "unstable"] }
+tauri-plugin-autostart = "2.5.1"
+tauri-plugin-dialog = "2"
+tauri-plugin-global-shortcut = "2.3.2"
+thiserror.workspace = true
+tokio.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+image.workspace = true
+paste-sync = { path = "../../../crates/paste-sync" }
+tempfile = "3.27.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+block2.workspace = true
+objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["CGContext", "CGBitmapContext", "CGColorSpace", "CGDataProvider", "CGImage", "CGPDFDocument", "CGPDFPage"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["CFData", "CFCGTypes", "std"] }
+objc2-quartz-core = { version = "0.3.2", default-features = false, features = ["CALayer", "objc2-core-foundation"] }
+objc2-foundation = { workspace = true, features = ["NSAttributedString", "NSRange", "NSValue", "NSURLRequest", "NSRunLoop", "NSNotification", "block2"] }
+objc2-app-kit = { workspace = true, features = ["NSAlert", "NSAttributedString", "NSButton", "NSScrollView", "NSTextView", "NSTextStorage", "NSTextContainer", "NSFontManager", "NSTextField", "NSView", "NSWindow", "NSScreen", "NSApplication", "NSFont", "NSColor", "NSEvent", "NSWritingToolsCoordinator", "NSMenu", "NSMenuItem", "NSImage", "NSBezierPath", "NSGraphicsContext", "NSStringDrawing", "NSBitmapImageRep", "NSGraphics", "NSParagraphStyle"] }
+dom_query = "0.27.0"
+cssparser = "0.36.0"
+libc = "0.2"
+
+[lints]
+workspace = true

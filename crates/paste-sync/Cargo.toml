@@ -1,0 +1,16 @@
+[package]
+name = "paste-sync"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+paste-domain = { path = "../paste-domain" }
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true

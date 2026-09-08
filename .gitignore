@@ -1,0 +1,36 @@
+/target/
+/dist/
+/.idea/
+/.vscode/
+.DS_Store
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+
+# Local deliveries and temporary QA outputs are not source distribution.
+/output/
+/tmp/
+/apps/desktop/dist/
+
+# Generated Tauri schemas; recreated during build.
+/apps/desktop/src-tauri/gen/
+
+# Local collaboration and historical acceptance records.
+/AGENTS.md
+/docs/*-2026-*.md
+/docs/product-spec.md
+/docs/visual-baseline.md
+
+# Machine-specific configuration, credentials and signing material.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.mobileprovision
+*.provisionprofile
+/.cargo/config.toml

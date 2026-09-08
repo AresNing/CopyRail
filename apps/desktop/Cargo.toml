@@ -1,0 +1,24 @@
+[package]
+name = "pasters-desktop-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+chrono.workspace = true
+paste-domain = { path = "../../crates/paste-domain" }
+serde.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { version = "0.3.0", features = ["futures"] }
+js-sys = "0.3.104"
+leptos = { version = "0.8.20", features = ["csr"] }
+serde-wasm-bindgen = "0.6.5"
+wasm-bindgen = "0.2.127"
+wasm-bindgen-futures = "0.4.77"
+web-sys = { version = "0.3.104", features = ["Document", "Element", "DomRect", "DragEvent", "PointerEvent", "NodeList", "Selection", "HtmlDialogElement"] }
+
+[lints]
+workspace = true
