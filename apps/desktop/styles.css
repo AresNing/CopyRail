@@ -2219,3 +2219,11 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 .keyboard-reference dd { margin: 0; white-space: nowrap; }
 .keyboard-reference kbd { color: var(--muted); font: inherit; }
 .pinboard-editor, .pinboard-creator { max-height: calc(100% - 50px); overflow-y: auto; }
+
+/* Language changes save independently of other preference drafts. */
+.settings-popover .language-setting { grid-template-columns: minmax(0, 1fr) 130px; margin-bottom: 8px; }
+.language-setting > span { display: grid; gap: 4px; }
+.language-setting small { color: var(--muted); font-size: 10px; }
+.language-select { width: 100%; height: 30px; padding: 0 8px; border: 1px solid var(--surface-border); border-radius: 8px; background: var(--solid-surface); color: var(--text); font: inherit; }
+.language-select:focus-visible { outline: 1px solid var(--muted); outline-offset: 2px; }
+.language-error { color: var(--text); font-size: 11px; }

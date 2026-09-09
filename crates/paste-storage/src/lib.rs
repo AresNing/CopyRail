@@ -1629,6 +1629,32 @@ impl SqliteStore {
         )
     }
 
+    /// Update only language while holding the settings lock. Unrelated saved
+    /// preferences cannot be overwritten by a UI draft or a concurrent update.
+    pub fn save_language(
+        &self,
+        language: paste_domain::Language,
+    ) -> Result<paste_domain::Language, StorageError> {
+        let connection = self.lock()?;
+        let json = connection
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'desktop_preferences'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        let mut preferences = match json {
+            Some(json) => serde_json::from_str::<DesktopPreferences>(&json)
+                .map_err(|error| corrupt("desktop preferences", error))?,
+            None => DesktopPreferences::default(),
+        };
+        preferences.language = language;
+        let json = serde_json::to_string(&preferences)
+            .map_err(|error| corrupt("desktop preferences", error))?;
+        connection.execute("INSERT INTO settings (key, value, updated_at_ms) VALUES ('desktop_preferences', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at_ms = excluded.updated_at_ms", params![json, Utc::now().timestamp_millis()])?;
+        Ok(language)
+    }
+
     pub fn save_desktop_preferences(
         &self,
         preferences: DesktopPreferences,

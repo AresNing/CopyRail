@@ -15,7 +15,8 @@ if (!imagePolicy) throw new Error('The real desktop image CSP directive is requi
 
 function fixtureBootstrap(iconAssets, pdfAssets) {
   const pdfMode = new URLSearchParams(location.search).get('fixture') === 'pdf';
-  const visualMode = pdfMode || new URLSearchParams(location.search).get('fixture') === 'visual';
+  const readmeMode = new URLSearchParams(location.search).get('fixture') === 'readme';
+  const visualMode = readmeMode || pdfMode || new URLSearchParams(location.search).get('fixture') === 'visual';
   const pinboardMode = new URLSearchParams(location.search).get('fixture') === 'pinboards';
   const sharedMode = new URLSearchParams(location.search).get('fixture') === 'shared-conflicts';
   const uuid = index => `10000000-0000-4000-8000-${String(index).padStart(12, '0')}`;
@@ -39,6 +40,14 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
       ['text', '长标题应省略而不挤坏卡片的宽度 🦀', '<img src="never-load" onerror="throw 1">\n' + '长文本🦀'.repeat(80)],
       ['color', 'Midnight', '#17243B'],
     ];
+    if (readmeMode) samples.splice(0, samples.length,
+      ['text', 'Launch checklist', 'A small release, ready to ship.\n\n• Review the changelog\n• Check keyboard navigation\n• Prepare the screenshots\n• Publish the source'],
+      ['link', 'Project handbook', 'https://example.com/handbook'],
+      ['image', 'Mountain study', 'Generated illustration for the demo.'],
+      ['color', 'Seafoam', '#58AD97'],
+      ['text', 'Rust snippet', 'fn main() {\n    println!("Hello, CopyRail!");\n}'],
+      ['html', 'Release notes', 'CopyRail workspace\n\nKeep useful snippets close.\nOrganize by project.\nPick up where you left off.'],
+    );
     clips.splice(0, clips.length, ...samples.map(([content_kind, title, searchable_text], index) => ({
       ...template, id: uuid(index + 1), content_kind, title, searchable_text,
       captured_at: new Date(Date.now() - (index + 1) * 60_000).toISOString(),
@@ -51,7 +60,7 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
       ['io.pasters.broken-icon', 'Broken icon'], ['com.apple.TextEdit', 'TextEdit'],
       ['com.apple.finder', 'Finder'], ['com.apple.TextEdit', 'TextEdit'],
     ];
-    clips.forEach((clip, i) => { clip.source = { bundle_identifier: sources[i][0], display_name: sources[i][1] }; });
+    clips.forEach((clip, i) => { clip.source = readmeMode ? { bundle_identifier: 'test.synthetic', display_name: 'Demo workspace' } : { bundle_identifier: sources[i][0], display_name: sources[i][1] }; });
   }
   window.sourceIconFixture = { calls: [], clips, delayMs: Number(new URLSearchParams(location.search).get('icon_delay') ?? 0), fail: new URLSearchParams(location.search).has('icon_fail'), iconAssets };
   if (pdfMode) {
@@ -64,7 +73,7 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
   window.previewEditFixture = { calls: [] };
   const shortcutConflict = new URLSearchParams(location.search).has('shortcut_conflict');
   window.shortcutFixture = { isolated: visualMode, registered: !visualMode && !shortcutConflict, failRegistration: shortcutConflict, retryDelayMs: 0, readDelayMs: 0, retries: 0, reads: 0, failRead: false, failRequest: false };
-  const boards = ['收件箱', '工作', '归档'].map((name, index) => ({
+  const boards = (readmeMode ? ['Inbox', 'Work', 'Archive'] : ['收件箱', '工作', '归档']).map((name, index) => ({
     id: uuid(index + 10), name, color: ['#ff9500', '#34c759', '#af52de'][index],
     sort_order: index, created_at: now, updated_at: now, is_shared: false, item_count: 0,
   }));
@@ -109,6 +118,7 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
     emit('pasters-drag-ended', { sessionId: state.drag.sessionId, cancelled: false });
     state.drag = null;
   });
+  window.languageFixture = { calls: [], fail: false, delayMs: 0 };
   window.__TAURI__ = { event: { listen: async (name, handler) => {
     if (!listeners.has(name)) listeners.set(name, new Set());
     listeners.get(name).add(handler);
@@ -144,7 +154,15 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
       case 'get_capture_preferences':
         return { retention: { max_age_days: null, max_unpinned_items: null }, excluded_bundle_ids: [] };
       case 'get_desktop_preferences':
-        return { launch_at_login: false, screen_share_protection: false, compact_mode: (visualMode || pinboardMode) && new URLSearchParams(location.search).get('compact') === '1' };
+        return { language: localStorage.getItem('fixture-language') ?? 'zh-CN', launch_at_login: false, screen_share_protection: false, compact_mode: (visualMode || pinboardMode) && new URLSearchParams(location.search).get('compact') === '1' };
+      case 'set_language': {
+        const control = window.languageFixture;
+        control.calls.push(args.request);
+        if (control.delayMs) await new Promise(resolve => setTimeout(resolve, control.delayMs));
+        if (control.fail) throw { message: 'Synthetic language save failure' };
+        localStorage.setItem('fixture-language', args.request);
+        return args.request;
+      }
       case 'get_permission_status': return { accessibilityTrusted: false };
       case 'get_shortcut_status': {
         const control = window.shortcutFixture;

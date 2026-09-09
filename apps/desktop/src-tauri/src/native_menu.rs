@@ -57,14 +57,20 @@ pub fn install(app: &AppHandle, isolated: bool) -> tauri::Result<()> {
                 if id == "pasters-edit-cut" {
                     submenu.append(&PredefinedMenuItem::separator(app)?)?;
                 }
-                submenu.append(&MenuItem::with_id(app, id, title, true, Some(accelerator))?)?;
+                submenu.append(&MenuItem::with_id(
+                    app,
+                    id,
+                    crate::locale::t(title),
+                    true,
+                    Some(accelerator),
+                )?)?;
             }
         }
         if submenu.text()? == "Window" {
             submenu.prepend(&MenuItem::with_id(
                 app,
                 "pasters-show-main",
-                "显示 CopyRail",
+                crate::locale::t("显示 CopyRail"),
                 true,
                 // Normal mode already owns the global shortcut. Registering
                 // it twice would toggle twice; QA only gets an in-app item.
@@ -98,6 +104,49 @@ pub fn install(app: &AppHandle, isolated: bool) -> tauri::Result<()> {
             let _ = send_to_responder(action);
         }
     });
+    Ok(())
+}
+
+pub struct TrayLabels {
+    pub show: MenuItem<tauri::Wry>,
+    pub pause: MenuItem<tauri::Wry>,
+    pub resume: MenuItem<tauri::Wry>,
+    pub quit: MenuItem<tauri::Wry>,
+}
+
+/// Change existing items; never register event handlers again on locale changes.
+pub fn relabel(app: &AppHandle) -> tauri::Result<()> {
+    if let Some(menu) = app.menu() {
+        for entry in menu.items()? {
+            if let Some(submenu) = entry.as_submenu() {
+                for entry in submenu.items()? {
+                    if let Some(item) = entry.as_menuitem() {
+                        let key = match item.id().as_ref() {
+                            "pasters-edit-undo" => "撤销",
+                            "pasters-edit-redo" => "重做",
+                            "pasters-edit-cut" => "剪切",
+                            "pasters-edit-copy" => "复制",
+                            "pasters-edit-paste" => "粘贴",
+                            "pasters-edit-select-all" => "全选",
+                            "pasters-show-main" => "显示 CopyRail",
+                            _ => continue,
+                        };
+                        item.set_text(crate::locale::t(key))?;
+                    }
+                }
+            }
+        }
+    }
+    if let Some(tray) = app.try_state::<TrayLabels>() {
+        for (item, key) in [
+            (&tray.show, "显示 CopyRail"),
+            (&tray.pause, "暂停采集 15 分钟"),
+            (&tray.resume, "继续采集"),
+            (&tray.quit, "退出 CopyRail"),
+        ] {
+            item.set_text(crate::locale::t(key))?;
+        }
+    }
     Ok(())
 }
 

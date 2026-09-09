@@ -26,7 +26,12 @@ fn item(label: &str, action: Action, enabled: bool) -> Entry {
     }
 }
 
-fn plan(context: &ClipActionContext, isolated: bool) -> Vec<Entry> {
+fn plan(
+    context: &ClipActionContext,
+    isolated: bool,
+    language: paste_domain::Language,
+) -> Vec<Entry> {
+    let t = |key| paste_domain::i18n::translate(language, key);
     let single = context.clips.len() == 1;
     let writable = context.clips.iter().all(|item| item.writable);
     let editable = single && context.clips.first().is_some_and(|item| {
@@ -39,19 +44,19 @@ fn plan(context: &ClipActionContext, isolated: bool) -> Vec<Entry> {
         }
     });
     let mut entries = vec![
-        item("粘贴", Action::Paste, !isolated),
-        item("粘贴为纯文本", Action::PastePlain, !isolated),
-        item("复制", Action::Copy, !isolated),
-        item("复制为纯文本", Action::CopyPlain, !isolated),
+        item(t("粘贴"), Action::Paste, !isolated),
+        item(t("粘贴为纯文本"), Action::PastePlain, !isolated),
+        item(t("复制"), Action::Copy, !isolated),
+        item(t("复制为纯文本"), Action::CopyPlain, !isolated),
         Entry::Separator,
-        item("快速预览", Action::Preview, single),
-        item("编辑", Action::Edit, editable),
-        item("重命名", Action::Rename, single && writable),
-        item("加入或移出 顺序粘贴", Action::ToggleStack, true),
+        item(t("快速预览"), Action::Preview, single),
+        item(t("编辑"), Action::Edit, editable),
+        item(t("重命名"), Action::Rename, single && writable),
+        item(t("加入或移出 顺序粘贴"), Action::ToggleStack, true),
         Entry::Separator,
     ];
     entries.push(Entry::Submenu {
-        label: "Pin 到…".into(),
+        label: t("Pin 到…").into(),
         children: context
             .boards
             .iter()
@@ -82,18 +87,18 @@ fn plan(context: &ClipActionContext, isolated: bool) -> Vec<Entry> {
         .collect::<Vec<_>>();
     if !sources.is_empty() {
         entries.push(Entry::Submenu {
-            label: "移出 Pinboard…".into(),
+            label: t("移出 Pinboard…").into(),
             children: sources,
         });
     }
     entries.extend([
-        item("在剪贴板历史中显示", Action::Locate, single),
+        item(t("在剪贴板历史中显示"), Action::Locate, single),
         Entry::Separator,
         item(
             if single {
-                "删除"
+                t("删除")
             } else {
-                "删除选中内容"
+                t("删除选中内容")
             },
             Action::Delete,
             writable,
@@ -215,6 +220,7 @@ mod mac {
         window: &tauri::WebviewWindow,
         context: &ClipActionContext,
         isolated: bool,
+        language: paste_domain::Language,
         x: f64,
         y: f64,
     ) -> Result<Option<Action>, String> {
@@ -243,7 +249,12 @@ mod mac {
             ]
         };
         let mut actions = Vec::new();
-        let menu = build(&plan(context, isolated), &target, &mut actions, mtm);
+        let menu = build(
+            &plan(context, isolated, language),
+            &target,
+            &mut actions,
+            mtm,
+        );
         let started = std::time::Instant::now();
         if isolated {
             eprintln!(
@@ -283,6 +294,7 @@ pub fn popup(
     _: &tauri::WebviewWindow,
     _: &ClipActionContext,
     _: bool,
+    _: paste_domain::Language,
     _: f64,
     _: f64,
 ) -> Result<Option<Action>, String> {
@@ -323,9 +335,25 @@ mod tests {
         })
     }
     #[test]
+    fn language_changes_actions_without_translating_user_board_names() {
+        let mut context = context();
+        context.boards[0].name = "设置".into();
+        let entries = plan(&context, false, paste_domain::Language::English);
+        assert!(matches!(&entries[0], Entry::Item { label, .. } if label == "Paste"));
+        let board_menu = entries
+            .iter()
+            .find_map(|entry| match entry {
+                Entry::Submenu { label, children } if label == "Pin to…" => Some(children),
+                _ => None,
+            })
+            .expect("English pin menu");
+        assert!(matches!(&board_menu[0], Entry::Item { label, .. } if label == "设置"));
+    }
+
+    #[test]
     fn isolated_menu_disables_clipboard_actions_but_allows_local_text_edit() {
         let context = context();
-        let entries = plan(&context, true);
+        let entries = plan(&context, true, paste_domain::Language::Chinese);
         for action in [
             Action::Copy,
             Action::CopyPlain,
@@ -337,7 +365,13 @@ mod tests {
         for action in [Action::Edit, Action::Rename, Action::Preview] {
             assert_eq!(enabled(&entries, action), Some(true));
         }
-        assert_eq!(enabled(&plan(&context, false), Action::Copy), Some(true));
+        assert_eq!(
+            enabled(
+                &plan(&context, false, paste_domain::Language::Chinese),
+                Action::Copy
+            ),
+            Some(true)
+        );
     }
     #[test]
     fn multi_selection_and_read_only_members_disable_unsafe_actions() {
@@ -350,7 +384,7 @@ mod tests {
             writable: false,
             move_restricted: false,
         });
-        let entries = plan(&context, false);
+        let entries = plan(&context, false, paste_domain::Language::Chinese);
         for action in [
             Action::Edit,
             Action::Rename,
@@ -368,9 +402,27 @@ mod tests {
     fn rich_representations_on_text_cards_keep_the_isolation_boundary() {
         let mut context = context();
         context.clips[0].clip.representations[0].native_type = Some("com.apple.flat-rtfd".into());
-        assert_eq!(enabled(&plan(&context, true), Action::Edit), Some(false));
-        assert_eq!(enabled(&plan(&context, true), Action::Rename), Some(true));
-        assert_eq!(enabled(&plan(&context, false), Action::Edit), Some(true));
+        assert_eq!(
+            enabled(
+                &plan(&context, true, paste_domain::Language::Chinese),
+                Action::Edit
+            ),
+            Some(false)
+        );
+        assert_eq!(
+            enabled(
+                &plan(&context, true, paste_domain::Language::Chinese),
+                Action::Rename
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            enabled(
+                &plan(&context, false, paste_domain::Language::Chinese),
+                Action::Edit
+            ),
+            Some(true)
+        );
     }
     #[test]
     fn shared_cross_scope_and_read_only_destination_are_disabled() {
@@ -378,13 +430,19 @@ mod tests {
         context.clips[0].move_restricted = true;
         context.clips[0].boards.clear();
         assert_eq!(
-            enabled(&plan(&context, false), Action::Pin(context.boards[0].id)),
+            enabled(
+                &plan(&context, false, paste_domain::Language::Chinese),
+                Action::Pin(context.boards[0].id)
+            ),
             Some(false)
         );
         context.clips[0].move_restricted = false;
         context.boards[0].writable = false;
         assert_eq!(
-            enabled(&plan(&context, false), Action::Pin(context.boards[0].id)),
+            enabled(
+                &plan(&context, false, paste_domain::Language::Chinese),
+                Action::Pin(context.boards[0].id)
+            ),
             Some(false)
         );
     }

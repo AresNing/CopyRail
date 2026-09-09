@@ -1,4 +1,7 @@
 #[cfg(target_arch = "wasm32")]
+mod i18n;
+
+#[cfg(target_arch = "wasm32")]
 mod app;
 
 #[cfg(target_arch = "wasm32")]

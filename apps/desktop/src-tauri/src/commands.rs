@@ -198,24 +198,30 @@ pub async fn show_clip_context_menu(
         .clip_action_context(&ids)
         .map_err(ApiError::storage)?;
     let isolated = state.native_test.is_some();
+    let language = state
+        .store
+        .load_desktop_preferences()
+        .map_err(ApiError::storage)?
+        .language;
     let (sender, receiver) = tokio::sync::oneshot::channel();
     app.run_on_main_thread(move || {
-        let result = crate::context_menu::popup(&window, &context, isolated, request.x, request.y)
-            .map(|choice| {
-                choice.map(|choice| {
-                    // Use the chosen item's database snapshot, not later UI state.
-                    let item = if matches!(
-                        choice,
-                        crate::context_action::ContextAction::Edit
-                            | crate::context_action::ContextAction::Rename
-                    ) {
-                        context.clips.into_iter().next().map(|item| item.clip)
-                    } else {
-                        None
-                    };
-                    ClipContextMenuChoice { choice, item }
-                })
-            });
+        let result =
+            crate::context_menu::popup(&window, &context, isolated, language, request.x, request.y)
+                .map(|choice| {
+                    choice.map(|choice| {
+                        // Use the chosen item's database snapshot, not later UI state.
+                        let item = if matches!(
+                            choice,
+                            crate::context_action::ContextAction::Edit
+                                | crate::context_action::ContextAction::Rename
+                        ) {
+                            context.clips.into_iter().next().map(|item| item.clip)
+                        } else {
+                            None
+                        };
+                        ClipContextMenuChoice { choice, item }
+                    })
+                });
         if isolated {
             match &result {
                 Ok(choice) => eprintln!(
@@ -1847,7 +1853,7 @@ pub async fn export_backup(
         .dialog()
         .file()
         .set_parent(&window)
-        .set_title("导出 CopyRail 本地备份")
+        .set_title(crate::locale::t("导出 CopyRail 本地备份"))
         .set_file_name(file_name)
         .add_filter("CopyRail Backup", &["pasters-backup"])
         .blocking_save_file();
@@ -1873,7 +1879,7 @@ pub async fn restore_backup(
         .dialog()
         .file()
         .set_parent(&window)
-        .set_title("选择 CopyRail 本地备份")
+        .set_title(crate::locale::t("选择 CopyRail 本地备份"))
         .add_filter("CopyRail Backup", &["pasters-backup"])
         .blocking_pick_file();
     let Some(selected) = selected else {
@@ -1882,14 +1888,14 @@ pub async fn restore_backup(
     let path = selected.into_path().map_err(ApiError::storage)?;
     let confirmed = window
         .dialog()
-        .message(
+        .message(crate::locale::t(
             "恢复会用备份中的历史、Pinboards 和本地设置替换当前数据。此操作完成后不能自动撤销。",
-        )
-        .title("恢复 CopyRail 备份？")
+        ))
+        .title(crate::locale::t("恢复 CopyRail 备份？"))
         .kind(MessageDialogKind::Warning)
         .buttons(MessageDialogButtons::OkCancelCustom(
-            "恢复备份".into(),
-            "取消".into(),
+            crate::locale::t("恢复备份").into(),
+            crate::locale::t("取消").into(),
         ))
         .blocking_show();
     if !confirmed {
@@ -1913,6 +1919,8 @@ pub async fn restore_backup(
         .load_desktop_preferences()
         .map_err(ApiError::storage)?;
     apply_desktop_preferences(&window, desktop_preferences).map_err(ApiError::storage)?;
+    crate::locale::set_language(desktop_preferences.language);
+    let _ = crate::native_menu::relabel(window.app_handle());
     Ok(Some(BackupActionResult {
         path: path.display().to_string(),
     }))
@@ -2142,6 +2150,24 @@ pub fn update_capture_preferences(
         .capture
         .update_preferences(saved.clone())
         .map_err(ApiError::storage)?;
+    Ok(saved)
+}
+
+/// Language changes never touch login, capture, Accessibility or window geometry.
+#[tauri::command]
+pub fn set_language(
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+    request: paste_domain::Language,
+) -> ApiResult<paste_domain::Language> {
+    let saved = state
+        .store
+        .save_language(request)
+        .map_err(ApiError::storage)?;
+    crate::locale::set_language(saved);
+    if let Err(error) = crate::native_menu::relabel(&app) {
+        eprintln!("Could not refresh native menu language: {error}");
+    }
     Ok(saved)
 }
 
@@ -2474,6 +2500,7 @@ mod tests {
     fn isolated_desktop_preferences_never_access_the_unregistered_autostart_plugin() {
         let store = paste_storage::SqliteStore::open_in_memory().expect("synthetic store");
         let saved = paste_domain::DesktopPreferences {
+            language: paste_domain::Language::Chinese,
             launch_at_login: true,
             compact_mode: true,
             screen_share_protection: true,

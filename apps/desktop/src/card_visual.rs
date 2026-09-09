@@ -25,12 +25,19 @@ pub fn color_swatch(kind: ContentKind, text: &str) -> Option<(String, &'static s
     Some((format!("#{r:02X}{g:02X}{b:02X}"), ink))
 }
 
-pub fn text_summary(kind: ContentKind, text: &str) -> Option<String> {
+pub fn text_summary(
+    kind: ContentKind,
+    text: &str,
+    language: paste_domain::Language,
+) -> Option<String> {
     matches!(
         kind,
         ContentKind::Text | ContentKind::RichText | ContentKind::Html
     )
-    .then(|| format!("{} 字符", text.chars().count()))
+    .then(|| match language {
+        paste_domain::Language::Chinese => format!("{} 字符", text.chars().count()),
+        paste_domain::Language::English => format!("{} characters", text.chars().count()),
+    })
 }
 
 #[cfg(test)]
@@ -105,13 +112,24 @@ mod tests {
     #[test]
     fn text_count_uses_unicode_scalars_not_utf8_bytes() {
         assert_eq!(
-            text_summary(ContentKind::Text, "中文🦀\n"),
+            text_summary(
+                ContentKind::Text,
+                "中文🦀\n",
+                paste_domain::Language::Chinese
+            ),
             Some("4 字符".into())
         );
         assert_eq!(
-            text_summary(ContentKind::RichText, ""),
+            text_summary(ContentKind::RichText, "", paste_domain::Language::Chinese),
             Some("0 字符".into())
         );
-        assert_eq!(text_summary(ContentKind::Image, "OCR result"), None);
+        assert_eq!(
+            text_summary(
+                ContentKind::Image,
+                "OCR result",
+                paste_domain::Language::Chinese
+            ),
+            None
+        );
     }
 }

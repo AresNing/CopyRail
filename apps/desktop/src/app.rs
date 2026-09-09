@@ -1,3 +1,4 @@
+use crate::i18n::{localized_format, t};
 use std::collections::{HashMap, HashSet};
 
 use crate::context_action::ContextAction;
@@ -344,30 +345,30 @@ fn SyncConflictList(
     move || {
         let items = conflicts.get();
         (!items.is_empty()).then(|| view! {
-            <div class="sync-conflict-list" aria-label="待处理的同步冲突">
+            <div class="sync-conflict-list" aria-label=move || t("待处理的同步冲突")>
                 {items.into_iter().map(|conflict| {
                     let keep_id = conflict.id.clone();
                     let accept_id = conflict.id.clone();
                     let busy_id = conflict.id.clone();
                     let keep_busy_id = conflict.id.clone();
                     let accept_busy_id = conflict.id;
-                    let ordering = if conflict.remote_would_win { "自动顺序原本偏向另一台设备" }
-                        else { "自动顺序原本偏向此 Mac" };
+                    let ordering = if conflict.remote_would_win { t("自动顺序原本偏向另一台设备") }
+                        else { t("自动顺序原本偏向此 Mac") };
                     view! {
                         <article class="sync-conflict-card" aria-busy=move || resolving.get().contains(&busy_id).to_string()>
                             <div class="sync-conflict-copy">
-                                <strong>{format!("并发编辑 · {}", relative_timestamp_ms(conflict.created_at_ms))}</strong>
+                                <strong>{move || localized_format!("并发编辑 · {}", "Concurrent edit · {}", relative_timestamp_ms(conflict.created_at_ms))}</strong>
                                 <span>{ordering}</span>
                                 <dl>
-                                    <div><dt>"此 Mac"</dt><dd>{conflict.local_title}</dd></div>
-                                    <div><dt>"另一台设备"</dt><dd>{conflict.remote_title}</dd></div>
+                                    <div><dt>{move || t("此 Mac")}</dt><dd>{conflict.local_title}</dd></div>
+                                    <div><dt>{move || t("另一台设备")}</dt><dd>{conflict.remote_title}</dd></div>
                                 </dl>
                             </div>
                             <div class="sync-conflict-actions">
                                 <button type="button" disabled=move || resolving.get().contains(&keep_busy_id)
-                                    on:click=move |_| on_resolve.run((keep_id.clone(), "keep_local".into()))>"保留此 Mac"</button>
+                                    on:click=move |_| on_resolve.run((keep_id.clone(), "keep_local".into()))>{move || t("保留此 Mac")}</button>
                                 <button class="accept-remote" type="button" disabled=move || resolving.get().contains(&accept_busy_id)
-                                    on:click=move |_| on_resolve.run((accept_id.clone(), "accept_remote".into()))>"采用另一台设备"</button>
+                                    on:click=move |_| on_resolve.run((accept_id.clone(), "accept_remote".into()))>{move || t("采用另一台设备")}</button>
                             </div>
                         </article>
                     }
@@ -401,22 +402,20 @@ struct SharedConflictView {
 
 #[component]
 fn SharedConflictVersion(label: &'static str, version: SharedConflictVersionView) -> impl IntoView {
-    let status = if version.deleted {
-        "（删除状态）"
-    } else {
-        ""
-    };
-    let body = if version.deleted {
-        "此版本删除了该内容。采用后会同步删除状态。".into()
-    } else if version.preview.is_empty() {
-        "非文本内容；采用时会保留该版本的原始格式和附件。".into()
-    } else {
-        version.preview
+    let title = version.title;
+    let body = move || {
+        if version.deleted {
+            t("此版本删除了该内容。采用后会同步删除状态。").to_owned()
+        } else if version.preview.is_empty() {
+            t("非文本内容；采用时会保留该版本的原始格式和附件。").to_owned()
+        } else {
+            version.preview.clone()
+        }
     };
     view! {
         <details class="shared-conflict-version">
-            <summary>{format!("{label} · {}{status}", version.title)}</summary>
-            <small>{format!("{} · {}", version.device_name, relative_timestamp_ms(version.timestamp_ms))}</small>
+            <summary>{move || format!("{} · {}{}", t(label), title, if version.deleted { t("（删除状态）") } else { "" })}</summary>
+            <small>{move || format!("{} · {}", version.device_name, relative_timestamp_ms(version.timestamp_ms))}</small>
             <p>{body}</p>
         </details>
     }
@@ -430,9 +429,9 @@ fn SharedConflictList(
 ) -> impl IntoView {
     view! {
         <Show when=move || !conflicts.get().is_empty()>
-            <section class="sync-conflict-list shared-conflict-list" aria-label="共享内容冲突">
-                <strong>"共享内容冲突"</strong>
-                <span>"查看当前内容及两份保留版本。选择会生成一个新版本；已移出的私人原记录不会被恢复或覆盖。每次显示最多 50 项。"</span>
+            <section class="sync-conflict-list shared-conflict-list" aria-label=move || t("共享内容冲突")>
+                <strong>{move || t("共享内容冲突")}</strong>
+                <span>{move || t("查看当前内容及两份保留版本。选择会生成一个新版本；已移出的私人原记录不会被恢复或覆盖。每次显示最多 50 项。")}</span>
                 <For each=move || conflicts.get()
                     key=|c| (c.id.clone(), c.current_operation_id.clone(), c.can_resolve, c.pinboard_name.clone())
                     children=move |conflict| {
@@ -448,7 +447,7 @@ fn SharedConflictList(
                             let busy = id.clone();
                             let revision = conflict.current_operation_id.clone();
                             view! { <button type="button" disabled=move || readonly || resolving.get().contains(&busy)
-                                on:click=move |_| on_resolve.run((id.clone(), revision.clone(), choice.into()))>{label}</button> }
+                                on:click=move |_| on_resolve.run((id.clone(), revision.clone(), choice.into()))>{move || t(label)}</button> }
                         }).collect_view();
                         view! {
                             <article class="sync-conflict-card" aria-busy=move || resolving.get().contains(&busy_id).to_string()>
@@ -456,7 +455,7 @@ fn SharedConflictList(
                                 <SharedConflictVersion label="当前" version=conflict.current />
                                 <SharedConflictVersion label="版本 A" version=conflict.first />
                                 <SharedConflictVersion label="版本 B" version=conflict.second />
-                                {readonly.then(|| view! { <span>"此共享板为只读，只有可编辑成员可以提交选择。"</span> })}
+                                {readonly.then(|| view! { <span>{move || t("此共享板为只读，只有可编辑成员可以提交选择。")}</span> })}
                                 <div class="sync-conflict-actions shared-conflict-actions">{actions}</div>
                             </article>
                         }
@@ -574,12 +573,13 @@ fn js_error(value: JsValue) -> String {
     value.as_string().unwrap_or_else(|| {
         serde_wasm_bindgen::from_value::<ClientApiError>(value)
             .map(|error| error.message)
-            .unwrap_or_else(|_| "桌面服务暂时不可用".into())
+            .unwrap_or_else(|_| t("桌面服务暂时不可用").into())
     })
 }
 
 #[component]
 pub fn App() -> impl IntoView {
+    crate::i18n::init();
     let (clips, set_clips) = signal(Vec::<ClipItem>::new());
     let (pinboards, set_pinboards) = signal(Vec::<Pinboard>::new());
     let (active_pinboard, set_active_pinboard) = signal(None::<PinboardId>);
@@ -697,6 +697,33 @@ pub fn App() -> impl IntoView {
     let (retention_items, set_retention_items) = signal(String::new());
     let (excluded_apps, set_excluded_apps) = signal(String::new());
     let (desktop_preferences, set_desktop_preferences) = signal(DesktopPreferences::default());
+    let settings_saving = RwSignal::new(false);
+    let language_saving = RwSignal::new(false);
+    let language_error = RwSignal::new(false);
+    let change_language = move |event: ev::Event| {
+        if language_saving.get_untracked() || settings_saving.get_untracked() {
+            return;
+        }
+        let next = match event_target_value(&event).as_str() {
+            "en" => paste_domain::Language::English,
+            "zh-CN" => paste_domain::Language::Chinese,
+            _ => return,
+        };
+        language_saving.set(true);
+        language_error.set(false);
+        spawn_local(async move {
+            match invoke::<paste_domain::Language>("set_language", &CommandArgs { request: next })
+                .await
+            {
+                Ok(saved) => {
+                    set_desktop_preferences.update(|draft| draft.language = saved);
+                    crate::i18n::set_language(saved);
+                }
+                Err(_) => language_error.set(true),
+            }
+            language_saving.set(false);
+        });
+    };
     let (applied_compact, set_applied_compact) = signal(false);
     let (previews, set_previews) = signal(HashMap::<ClipId, PreviewResult>::new());
     let (preview_loading, set_preview_loading) = signal(HashSet::<ClipId>::new());
@@ -934,6 +961,7 @@ pub fn App() -> impl IntoView {
         if let Ok(preferences) =
             invoke::<DesktopPreferences>("get_desktop_preferences", &EmptyArgs {}).await
         {
+            crate::i18n::set_language(preferences.language);
             set_desktop_preferences.set(preferences);
             set_applied_compact.set(preferences.compact_mode);
         }
@@ -1295,7 +1323,7 @@ pub fn App() -> impl IntoView {
                 );
                 if dialog.show_modal().is_err() {
                     set_content_editor_open.set(false);
-                    set_error.set(Some("无法打开内容编辑器，请重试。".into()));
+                    set_error.set(Some(t("无法打开内容编辑器，请重试。").into()));
                     return;
                 }
                 if let Ok(Some(field)) = dialog.query_selector("[autofocus]")
@@ -1369,10 +1397,14 @@ pub fn App() -> impl IntoView {
         spawn_local(async move {
             match invoke::<Vec<ClipItem>>("undo_last_delete", &EmptyArgs {}).await {
                 Ok(items) if !items.is_empty() => {
-                    set_notice.set(Some(format!("已恢复 {} 项内容。", items.len())));
+                    set_notice.set(Some(localized_format!(
+                        "已恢复 {} 项内容。",
+                        "Restored {} items.",
+                        items.len()
+                    )));
                     set_error.set(None);
                 }
-                Ok(_) => set_error.set(Some("没有可撤销的删除操作。".into())),
+                Ok(_) => set_error.set(Some(t("没有可撤销的删除操作。").into())),
                 Err(message) => set_error.set(Some(message)),
             }
         });
@@ -1456,7 +1488,7 @@ pub fn App() -> impl IntoView {
                         if let Some((text, selection)) = text.zip(selection)
                             && selection.select_all_children(&text).is_err()
                         {
-                            set_error.set(Some("无法选择预览正文，请重新操作。".into()));
+                            set_error.set(Some(t("无法选择预览正文，请重新操作。").into()));
                         }
                     }
                     Route::CopyClip => {
@@ -1467,7 +1499,7 @@ pub fn App() -> impl IntoView {
                                 match write_clips(vec![id], false, false).await {
                                     Ok(_) => {
                                         set_error.set(None);
-                                        set_notice.set(Some("已复制当前预览内容。".into()));
+                                        set_notice.set(Some(t("已复制当前预览内容。").into()));
                                     }
                                     Err(message) => set_error.set(Some(message)),
                                 }
@@ -1521,7 +1553,7 @@ pub fn App() -> impl IntoView {
                             match write_clips(clip_ids, false, false).await {
                                 Ok(_) => {
                                     set_error.set(None);
-                                    set_notice.set(Some("已复制选中内容。".into()));
+                                    set_notice.set(Some(t("已复制选中内容。").into()));
                                 }
                                 Err(message) => set_error.set(Some(message)),
                             }
@@ -1529,9 +1561,9 @@ pub fn App() -> impl IntoView {
                     }
                 }
                 "cut" | "paste" => {
-                    set_notice.set(Some("请先进入内容编辑器，在输入框中剪切或粘贴。".into()))
+                    set_notice.set(Some(t("请先进入内容编辑器，在输入框中剪切或粘贴。").into()))
                 }
-                "redo" => set_notice.set(Some("列表当前没有可重做的操作。".into())),
+                "redo" => set_notice.set(Some(t("列表当前没有可重做的操作。").into())),
                 _ => {}
             }
         }),
@@ -1543,7 +1575,8 @@ pub fn App() -> impl IntoView {
             match restore_clip(clip_id, plain_text).await {
                 Ok(result) if result.paste_requested => set_error.set(None),
                 Ok(_) => set_error.set(Some(
-                    "内容已复制；未确认当前目标，请手动粘贴或从目标应用重新唤起 CopyRail。".into(),
+                    t("内容已复制；未确认当前目标，请手动粘贴或从目标应用重新唤起 CopyRail。")
+                        .into(),
                 )),
                 Err(message) => set_error.set(Some(message)),
             }
@@ -1896,7 +1929,7 @@ pub fn App() -> impl IntoView {
                     set_preview_open.set(Some(clip.id));
                     set_error.set(None);
                 } else {
-                    set_error.set(Some("当前类型暂不支持内容编辑。".into()));
+                    set_error.set(Some(t("当前类型暂不支持内容编辑。").into()));
                 }
             }
             return;
@@ -1928,7 +1961,7 @@ pub fn App() -> impl IntoView {
                 spawn_local(async move {
                     match write_clips(clip_ids, event.shift_key(), false).await {
                         Ok(_) => {
-                            set_notice.set(Some("已复制选中内容。".into()));
+                            set_notice.set(Some(t("已复制选中内容。").into()));
                             set_error.set(None);
                         }
                         Err(message) => set_error.set(Some(message)),
@@ -1951,14 +1984,15 @@ pub fn App() -> impl IntoView {
                     spawn_local(async move {
                         match open_link_preview(clip_id).await {
                             Ok(()) => {
-                                set_notice.set(Some("已在 CopyRail 内置浏览器中打开链接。".into()));
+                                set_notice
+                                    .set(Some(t("已在 CopyRail 内置浏览器中打开链接。").into()));
                                 set_error.set(None);
                             }
                             Err(message) => set_error.set(Some(message)),
                         }
                     });
                 } else {
-                    set_error.set(Some("当前仅支持在内置浏览器中打开链接。".into()));
+                    set_error.set(Some(t("当前仅支持在内置浏览器中打开链接。").into()));
                 }
             }
             return;
@@ -2046,7 +2080,7 @@ pub fn App() -> impl IntoView {
                 match restore_clip(clip_id, false).await {
                     Ok(result) if result.paste_requested => set_error.set(None),
                     Ok(_) => set_error.set(Some(
-                        "内容已复制；未确认当前目标，请手动粘贴或从目标应用重新唤起 CopyRail。"
+                        t("内容已复制；未确认当前目标，请手动粘贴或从目标应用重新唤起 CopyRail。")
                             .into(),
                     )),
                     Err(message) => set_error.set(Some(message)),
@@ -2075,7 +2109,7 @@ pub fn App() -> impl IntoView {
                                 set_error.set(None);
                             }
                             Ok(_) => set_error.set(Some(
-                                "内容已复制；未确认当前目标，请手动粘贴或从目标应用重新唤起 CopyRail。"
+                                t("内容已复制；未确认当前目标，请手动粘贴或从目标应用重新唤起 CopyRail。")
                                     .into(),
                             )),
                             Err(message) => set_error.set(Some(message)),
@@ -2218,7 +2252,7 @@ pub fn App() -> impl IntoView {
                 Ok(result) if result.item_count > 0 => set_error.set(None),
                 Ok(_) => {
                     native_dragging.set(false);
-                    set_error.set(Some("没有可拖出的内容。".into()));
+                    set_error.set(Some(t("没有可拖出的内容。").into()));
                 }
                 Err(message) => {
                     native_dragging.set(false);
@@ -2326,7 +2360,7 @@ pub fn App() -> impl IntoView {
             }
             if !feedback_matches {
                 set_error.set(Some(
-                    "分类位置已变化或排序落点已失效，本次未移动；请重新拖到目标位置。".into(),
+                    t("分类位置已变化或排序落点已失效，本次未移动；请重新拖到目标位置。").into(),
                 ));
                 return;
             }
@@ -2345,10 +2379,13 @@ pub fn App() -> impl IntoView {
             spawn_local(async move {
                 match invoke::<bool>("place_pinboard_clips", &CommandArgs { request }).await {
                     Ok(true) => {
-                        set_notice.set(Some(format!("已移动 {count} 项，Pinboard 顺序已保存。")));
+                        set_notice.set(Some(localized_format!(
+                            "已移动 {count} 项，Pinboard 顺序已保存。",
+                            "Moved {count} items and saved the pinboard order."
+                        )));
                         set_error.set(None);
                     }
-                    Ok(false) => set_notice.set(Some("项目已在这个位置。".into())),
+                    Ok(false) => set_notice.set(Some(t("项目已在这个位置。").into())),
                     Err(message) => set_error.set(Some(message)),
                 }
                 placement_busy.set(false);
@@ -2392,7 +2429,7 @@ pub fn App() -> impl IntoView {
             match invoke::<Vec<Pinboard>>("reorder_pinboards", &CommandArgs { request }).await {
                 Ok(saved) => {
                     set_pinboards.set(saved);
-                    set_notice.set(Some("Pinboard 顺序已保存。".into()));
+                    set_notice.set(Some(t("Pinboard 顺序已保存。").into()));
                     set_error.set(None);
                 }
                 Err(message) => set_error.set(Some(message)),
@@ -2405,7 +2442,11 @@ pub fn App() -> impl IntoView {
         spawn_local(async move {
             match invoke::<Option<BackupActionResult>>("export_backup", &EmptyArgs {}).await {
                 Ok(Some(result)) => {
-                    set_notice.set(Some(format!("备份已保存到 {}", result.path)));
+                    set_notice.set(Some(localized_format!(
+                        "备份已保存到 {}",
+                        "Backup saved to {}",
+                        result.path
+                    )));
                     set_error.set(None);
                 }
                 Ok(None) => {}
@@ -2436,11 +2477,16 @@ pub fn App() -> impl IntoView {
                     if let Ok(preferences) =
                         invoke::<DesktopPreferences>("get_desktop_preferences", &EmptyArgs {}).await
                     {
+                        crate::i18n::set_language(preferences.language);
                         set_desktop_preferences.set(preferences);
                         set_applied_compact.set(preferences.compact_mode);
                     }
                     set_settings_open.set(false);
-                    set_notice.set(Some(format!("已从 {} 恢复本地数据", result.path)));
+                    set_notice.set(Some(localized_format!(
+                        "已从 {} 恢复本地数据",
+                        "Local data restored from {}",
+                        result.path
+                    )));
                     set_error.set(None);
                 }
                 Ok(None) => {}
@@ -2458,9 +2504,9 @@ pub fn App() -> impl IntoView {
                     let trusted = current.accessibility_trusted;
                     set_permission_status.set(Some(current));
                     set_notice.set(Some(if trusted {
-                        "直接粘贴权限已启用。".into()
+                        t("直接粘贴权限已启用。").into()
                     } else {
-                        "已请求 macOS 授权；开启 CopyRail 后请点“重新检测”。".into()
+                        t("已请求 macOS 授权；开启 CopyRail 后请点“重新检测”。").into()
                     }));
                     set_error.set(None);
                 }
@@ -2476,9 +2522,9 @@ pub fn App() -> impl IntoView {
                     let trusted = current.accessibility_trusted;
                     set_permission_status.set(Some(current));
                     set_notice.set(Some(if trusted {
-                        "已确认直接粘贴权限。".into()
+                        t("已确认直接粘贴权限。").into()
                     } else {
-                        "尚未授予辅助功能权限；复制仍可正常使用。".into()
+                        t("尚未授予辅助功能权限；复制仍可正常使用。").into()
                     }));
                     set_error.set(None);
                 }
@@ -2500,11 +2546,13 @@ pub fn App() -> impl IntoView {
             {
                 Ok(current) => {
                     let notice_message = if enabled && current.cloud_transport_configured {
-                        "iCloud 同步已启用，正在后台检查账户并同步；失败时本地队列会完整保留。"
+                        t("iCloud 同步已启用，正在后台检查账户并同步；失败时本地队列会完整保留。")
                     } else if enabled {
-                        "已保存 iCloud 同步选择；当前构建不访问 CloudKit，本地待发送队列会完整保留。"
+                        t(
+                            "已保存 iCloud 同步选择；当前构建不访问 CloudKit，本地待发送队列会完整保留。",
+                        )
                     } else {
-                        "iCloud 同步已关闭；不会初始化 CloudKit。"
+                        t("iCloud 同步已关闭；不会初始化 CloudKit。")
                     };
                     set_sync_status.set(Some(current));
                     set_notice.set(Some(notice_message.into()));
@@ -2543,9 +2591,9 @@ pub fn App() -> impl IntoView {
                             set_sync_status.set(Some(current));
                         }
                         set_notice.set(Some(if resolution == "keep_local" {
-                            "已保留此 Mac 的最新版本，最终选择已加入同步队列。".into()
+                            t("已保留此 Mac 的最新版本，最终选择已加入同步队列。").into()
                         } else {
-                            "已采用另一台设备的版本，最终选择已加入同步队列。".into()
+                            t("已采用另一台设备的版本，最终选择已加入同步队列。").into()
                         }));
                         set_error.set(None);
                     }
@@ -2584,7 +2632,8 @@ pub fn App() -> impl IntoView {
                 {
                     Ok(conflicts) => {
                         set_shared_conflicts.set(conflicts);
-                        set_notice.set(Some("选择已保存并加入共享待发送队列；尚未上传。".into()));
+                        set_notice
+                            .set(Some(t("选择已保存并加入共享待发送队列；尚未上传。").into()));
                         set_error.set(None);
                     }
                     Err(message) => {
@@ -2623,9 +2672,9 @@ pub fn App() -> impl IntoView {
                 Ok(current) => {
                     set_mcp_status.set(Some(current));
                     set_notice.set(Some(if enabled {
-                        "MCP 本地访问已启用。".into()
+                        t("MCP 本地访问已启用。").into()
                     } else {
-                        "MCP 本地访问已停用，现有连接立即失效。".into()
+                        t("MCP 本地访问已停用，现有连接立即失效。").into()
                     }));
                     set_error.set(None);
                 }
@@ -2637,7 +2686,7 @@ pub fn App() -> impl IntoView {
     let create_mcp_connection = move |_| {
         let display_name = mcp_client_name.get_untracked().trim().to_owned();
         if display_name.is_empty() {
-            set_error.set(Some("请填写要连接的客户端名称。".into()));
+            set_error.set(Some(t("请填写要连接的客户端名称。").into()));
             return;
         }
         spawn_local(async move {
@@ -2654,7 +2703,7 @@ pub fn App() -> impl IntoView {
                     set_mcp_connection_config.set(Some(result.configuration));
                     set_mcp_client_name.set(String::new());
                     set_notice.set(Some(
-                        "连接已创建并启用；配置只显示这一次，请立即保存到目标客户端。".into(),
+                        t("连接已创建并启用；配置只显示这一次，请立即保存到目标客户端。").into(),
                     ));
                     set_error.set(None);
                 }
@@ -2675,7 +2724,9 @@ pub fn App() -> impl IntoView {
             {
                 Ok(current) => {
                     set_mcp_status.set(Some(current));
-                    set_notice.set(Some("该 MCP 客户端已撤销，正在运行的连接也会失效。".into()));
+                    set_notice.set(Some(
+                        t("该 MCP 客户端已撤销，正在运行的连接也会失效。").into(),
+                    ));
                     set_error.set(None);
                 }
                 Err(message) => set_error.set(Some(message)),
@@ -2684,6 +2735,9 @@ pub fn App() -> impl IntoView {
     });
 
     let save_settings = move |_| {
+        if language_saving.get_untracked() || settings_saving.get_untracked() {
+            return;
+        }
         let capture_preferences = CapturePreferences {
             retention: RetentionPolicy {
                 max_age_days: parse_optional_positive(&retention_days.get_untracked()),
@@ -2698,6 +2752,7 @@ pub fn App() -> impl IntoView {
                 .collect(),
         };
         let desktop_request = desktop_preferences.get_untracked();
+        settings_saving.set(true);
         spawn_local(async move {
             match invoke::<CapturePreferences>(
                 "update_capture_preferences",
@@ -2722,6 +2777,7 @@ pub fn App() -> impl IntoView {
                             set_retention_items
                                 .set(optional_number(saved_capture.retention.max_unpinned_items));
                             set_excluded_apps.set(saved_capture.excluded_bundle_ids.join("\n"));
+                            crate::i18n::set_language(saved_desktop.language);
                             set_desktop_preferences.set(saved_desktop);
                             set_applied_compact.set(saved_desktop.compact_mode);
                             set_settings_open.set(false);
@@ -2732,6 +2788,7 @@ pub fn App() -> impl IntoView {
                 }
                 Err(message) => set_error.set(Some(message)),
             }
+            settings_saving.set(false);
         });
     };
 
@@ -2776,7 +2833,7 @@ pub fn App() -> impl IntoView {
                         }
                     });
                     set_pinboard_editor_open.set(false);
-                    set_notice.set(Some("Pinboard 已更新。".into()));
+                    set_notice.set(Some(t("Pinboard 已更新。").into()));
                     set_error.set(None);
                 }
                 Err(message) => set_error.set(Some(message)),
@@ -2809,7 +2866,7 @@ pub fn App() -> impl IntoView {
             match invoke::<Vec<Pinboard>>("reorder_pinboards", &CommandArgs { request }).await {
                 Ok(saved) => {
                     set_pinboards.set(saved);
-                    set_notice.set(Some("Pinboard 顺序已保存。".into()));
+                    set_notice.set(Some(t("Pinboard 顺序已保存。").into()));
                     set_error.set(None);
                 }
                 Err(message) => set_error.set(Some(message)),
@@ -2851,7 +2908,7 @@ pub fn App() -> impl IntoView {
                             set_selection_anchor.set(target);
                         }
                     }
-                    set_notice.set(Some("Pinboard 项目顺序已保存。".into()));
+                    set_notice.set(Some(t("Pinboard 项目顺序已保存。").into()));
                     set_error.set(None);
                 }
                 Ok(false) => {}
@@ -2876,7 +2933,7 @@ pub fn App() -> impl IntoView {
                     set_selected.set(0);
                     set_selected_ids.set(HashSet::new());
                     set_selection_anchor.set(0);
-                    set_notice.set(Some("Pinboard 已删除，剪贴板历史保持不变。".into()));
+                    set_notice.set(Some(t("Pinboard 已删除，剪贴板历史保持不变。").into()));
                     set_error.set(None);
                 }
                 Ok(false) => {}
@@ -2936,7 +2993,7 @@ pub fn App() -> impl IntoView {
             return;
         }
         if !is_textually_editable(clip.content_kind) {
-            set_error.set(Some("当前类型暂不支持内容编辑。".into()));
+            set_error.set(Some(t("当前类型暂不支持内容编辑。").into()));
             return;
         }
         set_content_editor_id.set(Some(clip.id));
@@ -3028,7 +3085,7 @@ pub fn App() -> impl IntoView {
                     return Ok(());
                 };
                 if requested_context != search_context.get_untracked() {
-                    return Err("菜单打开期间列表已变化，请重新选择内容。".into());
+                    return Err(t("菜单打开期间列表已变化，请重新选择内容。").into());
                 }
                 match choice.choice {
                     ContextAction::Copy
@@ -3046,14 +3103,14 @@ pub fn App() -> impl IntoView {
                         let result = write_clips(ids.clone(), plain, paste).await?;
                         if paste && !result.paste_requested {
                             set_notice.set(Some(
-                                "内容已复制；未确认当前目标，请手动粘贴或从目标应用重新唤起 CopyRail。".into(),
+                                t("内容已复制；未确认当前目标，请手动粘贴或从目标应用重新唤起 CopyRail。").into(),
                             ));
                         } else {
                             set_notice.set(Some(
                                 if paste {
-                                    "已向目标应用发送粘贴请求。"
+                                    t("已向目标应用发送粘贴请求。")
                                 } else {
-                                    "已复制选中内容。"
+                                    t("已复制选中内容。")
                                 }
                                 .into(),
                             ));
@@ -3070,7 +3127,7 @@ pub fn App() -> impl IntoView {
                         let clip = choice
                             .item
                             .filter(|clip| clip.id == clip_id && ids.len() == 1)
-                            .ok_or("菜单编辑内容已失效。")?;
+                            .ok_or(t("菜单编辑内容已失效。"))?;
                         let rename = choice.choice == ContextAction::Rename;
                         if !rename && needs_rich_text_editor(&clip) {
                             invoke::<()>(
@@ -3110,7 +3167,7 @@ pub fn App() -> impl IntoView {
                         )
                         .await?;
                         order_revision.update(|revision| *revision = revision.wrapping_add(1));
-                        set_notice.set(Some("Pinboard 归属已更新，剪贴板历史保持不变。".into()));
+                        set_notice.set(Some(t("Pinboard 归属已更新，剪贴板历史保持不变。").into()));
                     }
                     ContextAction::Delete => {
                         invoke::<()>(
@@ -3127,7 +3184,7 @@ pub fn App() -> impl IntoView {
                         set_selected_ids.set(HashSet::new());
                         set_selected.set(0);
                         order_revision.update(|revision| *revision = revision.wrapping_add(1));
-                        set_notice.set(Some(format!("已删除 {} 项内容；⌘Z 可撤销。", ids.len())));
+                        set_notice.set(Some(localized_format!("已删除 {} 项内容；⌘Z 可撤销。", "Deleted {} items. Press ⌘Z to undo.", ids.len())));
                     }
                 }
                 Ok(())
@@ -3149,7 +3206,7 @@ pub fn App() -> impl IntoView {
                 return;
             };
             if title.trim().is_empty() {
-                set_error.set(Some("标题不能为空。".into()));
+                set_error.set(Some(t("标题不能为空。").into()));
                 return;
             }
             let saved_title = title.trim().to_owned();
@@ -3174,7 +3231,7 @@ pub fn App() -> impl IntoView {
                         set_content_editor_open.set(false);
                         set_content_editor_id.set(None);
                         set_content_editor_rename_only.set(false);
-                        set_notice.set(Some("标题已更新。".into()));
+                        set_notice.set(Some(t("标题已更新。").into()));
                         set_error.set(None);
                     }
                     Err(message) => set_error.set(Some(message)),
@@ -3183,11 +3240,13 @@ pub fn App() -> impl IntoView {
             return;
         }
         if value.trim().is_empty() {
-            set_error.set(Some("内容不能为空。".into()));
+            set_error.set(Some(t("内容不能为空。").into()));
             return;
         }
         if kind == ContentKind::Color && paste_domain::parse_color_code(&value).is_none() {
-            set_error.set(Some("请输入六位色值：带 #，或至少含一个 A–F 字母。".into()));
+            set_error.set(Some(
+                t("请输入六位色值：带 #，或至少含一个 A–F 字母。").into(),
+            ));
             return;
         }
         let active_board = active_pinboard.get_untracked();
@@ -3244,9 +3303,9 @@ pub fn App() -> impl IntoView {
                     set_content_editor_id.set(None);
                     set_content_editor_rename_only.set(false);
                     set_notice.set(Some(if clip_id.is_some() {
-                        "内容已更新并重新建立搜索索引。".into()
+                        t("内容已更新并重新建立搜索索引。").into()
                     } else {
-                        "新内容已保存到本地历史。".into()
+                        t("新内容已保存到本地历史。").into()
                     }));
                     set_error.set(None);
                 }
@@ -3380,7 +3439,7 @@ pub fn App() -> impl IntoView {
                             set_previews.update(|items| {
                                 items.insert(clip_id, preview);
                             });
-                            set_notice.set(Some("图片已在本地旋转并保存。".into()));
+                            set_notice.set(Some(t("图片已在本地旋转并保存。").into()));
                             set_error.set(None);
                         }
                         Err(message) => set_error.set(Some(message)),
@@ -3421,8 +3480,7 @@ pub fn App() -> impl IntoView {
                             *item = result.item;
                         }
                     });
-                    set_notice.set(Some(format!(
-                        "已在本机识别 {} 行、{} 个字符，并加入搜索索引。",
+                    set_notice.set(Some(localized_format!("已在本机识别 {} 行、{} 个字符，并加入搜索索引。", "Recognized {} lines and {} characters locally and added them to the search index.",
                         result.line_count, result.character_count
                     )));
                     set_error.set(None);
@@ -3439,7 +3497,7 @@ pub fn App() -> impl IntoView {
         spawn_local(async move {
             match open_link_preview(clip_id).await {
                 Ok(()) => {
-                    set_notice.set(Some("已在 CopyRail 内置浏览器中打开链接。".into()));
+                    set_notice.set(Some(t("已在 CopyRail 内置浏览器中打开链接。").into()));
                     set_error.set(None);
                 }
                 Err(message) => set_error.set(Some(message)),
@@ -3529,9 +3587,9 @@ pub fn App() -> impl IntoView {
                         node_ref=search_input
                         id="history-search"
                         aria-controls="history-results"
-                        aria-label="搜索剪贴板历史"
+                        aria-label=move || t("搜索剪贴板历史")
                         type="search"
-                        placeholder="搜索复制过的内容"
+                        placeholder=move || t("搜索复制过的内容")
                         prop:value=move || query.get()
                         on:input=move |event| {
                             set_query.set(event_target_value(&event));
@@ -3550,8 +3608,8 @@ pub fn App() -> impl IntoView {
                                 || date_days.get().is_some()
                         }
                         type="button"
-                        aria-label="按内容类型筛选"
-                        title="按内容类型筛选"
+                        aria-label=move || t("按内容类型筛选")
+                        title=move || t("按内容类型筛选")
                         on:click=move |_| {
                             set_filter_menu_open.update(|value| *value = !*value);
                             set_settings_open.set(false);
@@ -3564,7 +3622,7 @@ pub fn App() -> impl IntoView {
                                 + usize::from(active_source.get().is_some())
                                 + usize::from(active_device.get().is_some())
                                 + usize::from(date_days.get().is_some());
-                            if count == 0 { "筛选".into() } else { format!("筛选 {count}") }
+                            if count == 0 { t("筛选").into() } else { localized_format!("筛选 {count}", "Filter {count}") }
                         }}
                     </button>
                 </div>
@@ -3572,8 +3630,8 @@ pub fn App() -> impl IntoView {
                     <button
                         class="content-action"
                         type="button"
-                        aria-label="新建文本、链接或颜色"
-                        title="新建文本、链接或颜色"
+                        aria-label=move || t("新建文本、链接或颜色")
+                        title=move || t("新建文本、链接或颜色")
                         on:click=open_new_item
                     >"＋"</button>
                     {move || {
@@ -3592,21 +3650,21 @@ pub fn App() -> impl IntoView {
                             <button
                                 class="content-action"
                                 type="button"
-                                title="编辑选中内容"
+                                title=move || t("编辑选中内容")
                                 on:click=open_content_editor
-                            >"编辑"</button>
+                            >{move || t("编辑")}</button>
                         })
                     }}
                     {move || (selected_ids.get().len() == 1).then(|| view! {
                         <button
                             class="content-action"
                             type="button"
-                            title="重命名选中项目（⌘R）"
+                            title=move || t("重命名选中项目（⌘R）")
                             on:click=open_rename_editor
-                        >"命名"</button>
+                        >{move || t("命名")}</button>
                     })}
                     {move || (selected_ids.get().len() > 1).then(|| view! {
-                        <span class="selection-count">{format!("已选 {} 项", selected_ids.get().len())}</span>
+                        <span class="selection-count">{localized_format!("已选 {} 项", "{} selected", selected_ids.get().len())}</span>
                     })}
                     {move || if active_pinboard.get().is_some() && !search_active.get() {
                         view! {
@@ -3622,19 +3680,19 @@ pub fn App() -> impl IntoView {
                                         <button
                                             class="organize-button"
                                             type="button"
-                                            title="在 Pinboard 中向前移动"
+                                            title=move || t("在 Pinboard 中向前移动")
                                             on:click=move |_| move_pinboard_item.run(-1)
                                         >"←"</button>
                                         <button
                                             class="organize-button"
                                             type="button"
-                                            title="在 Pinboard 中向后移动"
+                                            title=move || t("在 Pinboard 中向后移动")
                                             on:click=move |_| move_pinboard_item.run(1)
                                         >"→"</button>
                                     })
                                 }}
                                 <button class="organize-button" type="button" on:click=unpin_selected>
-                                    "移出"
+                                    {move || t("移出")}
                                 </button>
                             </div>
                         }.into_any()
@@ -3650,32 +3708,32 @@ pub fn App() -> impl IntoView {
                                     set_pinboard_creator_open.set(false);
                                     set_filter_menu_open.set(false);
                                 }
-                            >"归类"</button>
+                            >{move || t("归类")}</button>
                         }.into_any()
                     }}
                     <button
                         class="stack-button"
                         class:active=move || !stack.get().is_empty()
                         type="button"
-                        title="清空待粘贴列表（不会删除历史）"
+                        title=move || t("清空待粘贴列表（不会删除历史）")
                         on:click=move |_| set_stack.set(Vec::new())
                     >
-                        <span>"顺序粘贴"</span>
+                        <span>{move || t("顺序粘贴")}</span>
                         <strong>{move || stack.get().len()}</strong>
                     </button>
                     {move || if capture_isolated.get() {
-                        view! { <span class="native-test-badge" role="status" title="合成历史；不访问系统剪贴板或 iCloud">"隔离验证"</span> }.into_any()
+                        view! { <span class="native-test-badge" role="status" title=move || t("合成历史；不访问系统剪贴板或 iCloud")>{move || t("隔离验证")}</span> }.into_any()
                     } else {
                         capture_status_visible.get().then(|| view! {
                             <button class="capture-status" type="button" role="status"
                                 class:paused=move || pending_capture_control().is_none() && status.get().is_some_and(|value| value.paused)
-                                title="在设置中管理采集"
+                                title=move || t("在设置中管理采集")
                                 on:click=move |_| { change_settings.run(true); settings_tab.set("history"); }
                             >{move || match pending_capture_control().as_deref() {
-                                Some("pause") => "正在暂停…",
-                                Some("resume") => "正在恢复…",
-                                Some(_) => "正在应用设置…",
-                                None => "采集已暂停",
+                                Some("pause") => t("正在暂停…"),
+                                Some("resume") => t("正在恢复…"),
+                                Some(_) => t("正在应用设置…"),
+                                None => t("采集已暂停"),
                             }}</button>
                         }).into_any()
                     }}
@@ -3683,8 +3741,8 @@ pub fn App() -> impl IntoView {
                         class="settings-button"
                         class:active=move || settings_open.get()
                         type="button"
-                        aria-label="采集与隐私设置"
-                        title="采集与隐私设置"
+                        aria-label=move || t("采集与隐私设置")
+                        title=move || t("采集与隐私设置")
                         on:click=move |_| change_settings.run(!settings_open.get_untracked())
                     >"⚙"</button>
 
@@ -3705,7 +3763,7 @@ pub fn App() -> impl IntoView {
                         }
                     >
                         <span class="pin-dot clipboard"></span>
-                        "Clipboard"
+                        {move || t("剪贴板")}
                     </button>
                     <For
                         each=move || pinboards.get()
@@ -3775,8 +3833,8 @@ pub fn App() -> impl IntoView {
                     <button
                         class="pinboard add-pinboard"
                         type="button"
-                        aria-label="新建 Pinboard"
-                        title="新建 Pinboard"
+                        aria-label=move || t("新建 Pinboard")
+                        title=move || t("新建 Pinboard")
                         on:click=move |_| {
                             set_pinboard_creator_open.update(|value| *value = !*value);
                             set_pinboard_editor_open.set(false);
@@ -3790,8 +3848,8 @@ pub fn App() -> impl IntoView {
                             class="pinboard manage-pinboard"
                             class:active=move || pinboard_editor_open.get()
                             type="button"
-                            aria-label="编辑当前 Pinboard"
-                            title="重命名、改色或排序"
+                            aria-label=move || t("编辑当前 Pinboard")
+                            title=move || t("重命名、改色或排序")
                             on:click=move |_| {
                                 let opening = !pinboard_editor_open.get_untracked();
                                 set_pinboard_editor_open.set(opening);
@@ -3815,9 +3873,9 @@ pub fn App() -> impl IntoView {
             </header>
 
             {move || filter_menu_open.get().then(|| view! {
-                <aside class="filter-popover" aria-label="组合筛选">
+                <aside class="filter-popover" aria-label=move || t("组合筛选")>
                     <header>
-                        <strong>"筛选"</strong>
+                        <strong>{move || t("筛选")}</strong>
                         <button type="button" on:click=move |_| {
                             set_active_kind.set(None);
                             set_active_source.set(None);
@@ -3827,10 +3885,10 @@ pub fn App() -> impl IntoView {
                             set_selected.set(0);
                             set_selected_ids.set(HashSet::new());
                             set_selection_anchor.set(0);
-                        }>"清除"</button>
+                        }>{move || t("清除")}</button>
                     </header>
                     <section>
-                        <strong>"内容"</strong>
+                        <strong>{move || t("内容")}</strong>
                         <div class="filter-chips">
                             <For
                                 each=move || FILTER_KINDS
@@ -3845,13 +3903,13 @@ pub fn App() -> impl IntoView {
                                             });
                                             set_history_offset.set(0);
                                         }
-                                    >{kind_label(kind)}</button>
+                                    >{move || kind_label(kind)}</button>
                                 }
                             />
                         </div>
                     </section>
                     <section>
-                        <strong>"来源应用"</strong>
+                        <strong>{move || t("来源应用")}</strong>
                         <div class="filter-chips facets">
                             <For
                                 each=move || {
@@ -3881,7 +3939,7 @@ pub fn App() -> impl IntoView {
                         </div>
                     </section>
                     <section>
-                        <strong>"设备"</strong>
+                        <strong>{move || t("设备")}</strong>
                         <div class="filter-chips facets">
                             <For
                                 each=move || search_facets.get().devices
@@ -3905,7 +3963,7 @@ pub fn App() -> impl IntoView {
                         </div>
                     </section>
                     <section>
-                        <strong>"时间"</strong>
+                        <strong>{move || t("时间")}</strong>
                         <div class="filter-chips">
                             {[(1_i64, "最近 24 小时"), (7, "最近 7 天"), (30, "最近 30 天")].into_iter().map(|(days, label)| view! {
                                 <button
@@ -3917,7 +3975,7 @@ pub fn App() -> impl IntoView {
                                         });
                                         set_history_offset.set(0);
                                     }
-                                >{label}</button>
+                                >{move || t(label)}</button>
                             }).collect_view()}
                         </div>
                     </section>
@@ -3925,48 +3983,48 @@ pub fn App() -> impl IntoView {
             })}
 
             {move || pinboard_creator_open.get().then(|| view! {
-                <aside class="pinboard-creator" aria-label="新建 Pinboard">
-                    <label class="pinboard-name-field"><span>"名称"</span><input type="text" maxlength="80" placeholder="分类名称"
+                <aside class="pinboard-creator" aria-label=move || t("新建 Pinboard")>
+                    <label class="pinboard-name-field"><span>{move || t("名称")}</span><input type="text" maxlength="80" placeholder=move || t("分类名称")
                         prop:value=move || new_pinboard_name.get()
                         on:input=move |event| set_new_pinboard_name.set(event_target_value(&event)) /></label>
-                    <label class="pinboard-color-field"><span>"颜色"</span><input type="color" aria-label="Pinboard 颜色"
+                    <label class="pinboard-color-field"><span>{move || t("颜色")}</span><input type="color" aria-label=move || t("Pinboard 颜色")
                         prop:value=move || new_pinboard_color.get()
                         on:input=move |event| set_new_pinboard_color.set(event_target_value(&event)) /></label>
-                    <button type="button" on:click=create_pinboard>"创建"</button>
+                    <button type="button" on:click=create_pinboard>{move || t("创建")}</button>
                 </aside>
             })}
 
             {move || pinboard_editor_open.get().then(|| view! {
-                <aside class="pinboard-editor" aria-label="编辑 Pinboard">
+                <aside class="pinboard-editor" aria-label=move || t("编辑 Pinboard")>
                     <header>
-                        <strong>"编辑分类"</strong>
+                        <strong>{move || t("编辑分类")}</strong>
                         <button type="button" on:click=move |_| set_pinboard_editor_open.set(false)>
                             "×"
                         </button>
                     </header>
                     <div class="pinboard-editor-fields">
-                        <label class="pinboard-name-field"><span>"名称"</span><input type="text" maxlength="80" placeholder="分类名称"
+                        <label class="pinboard-name-field"><span>{move || t("名称")}</span><input type="text" maxlength="80" placeholder=move || t("分类名称")
                             prop:value=move || edit_pinboard_name.get()
                             on:input=move |event| set_edit_pinboard_name.set(event_target_value(&event)) /></label>
-                        <label class="pinboard-color-field"><span>"颜色"</span><input type="color" aria-label="Pinboard 颜色"
+                        <label class="pinboard-color-field"><span>{move || t("颜色")}</span><input type="color" aria-label=move || t("Pinboard 颜色")
                             prop:value=move || edit_pinboard_color.get()
                             on:input=move |event| set_edit_pinboard_color.set(event_target_value(&event)) /></label>
                     </div>
                     <div class="pinboard-editor-actions">
                         <div>
-                            <button type="button" title="向前移动" on:click=move |_| move_pinboard.run(-1)>
+                            <button type="button" title=move || t("向前移动") on:click=move |_| move_pinboard.run(-1)>
                                 "←"
                             </button>
-                            <button type="button" title="向后移动" on:click=move |_| move_pinboard.run(1)>
+                            <button type="button" title=move || t("向后移动") on:click=move |_| move_pinboard.run(1)>
                                 "→"
                             </button>
                         </div>
                         <div>
                             <button class="delete-pinboard" type="button" on:click=delete_pinboard>
-                                "删除"
+                                {move || t("删除")}
                             </button>
                             <button class="save-pinboard" type="button" on:click=save_pinboard>
-                                "保存"
+                                {move || t("保存")}
                             </button>
                         </div>
                     </div>
@@ -3974,10 +4032,10 @@ pub fn App() -> impl IntoView {
             })}
 
             {move || pin_menu_open.get().then(|| view! {
-                <aside class="pin-menu" aria-label="固定到 Pinboard">
-                    <strong>"固定到"</strong>
+                <aside class="pin-menu" aria-label=move || t("固定到 Pinboard")>
+                    <strong>{move || t("固定到")}</strong>
                     {move || if pinboards.get().is_empty() {
-                        view! { <span>"先新建一个 Pinboard"</span> }.into_any()
+                        view! { <span>{move || t("先新建一个 Pinboard")}</span> }.into_any()
                     } else {
                         view! {
                             <div>
@@ -4016,27 +4074,27 @@ pub fn App() -> impl IntoView {
                             <div>
                                 <strong id="content-editor-heading">{move || if content_editor_id.get().is_some() {
                                     if content_editor_rename_only.get() {
-                                        "重命名"
+                                        t("重命名")
                                     } else {
-                                        "编辑内容"
+                                        t("编辑内容")
                                     }
                                 } else {
-                                    "新建内容"
+                                    t("新建内容")
                                 }}</strong>
                                 <span id="content-editor-description">{move || if content_editor_rename_only.get() {
-                                    "只修改显示标题，不改动原始剪贴板内容。"
+                                    t("只修改显示标题，不改动原始剪贴板内容。")
                                 } else {
-                                    "内容仅保存在本机，保存后会立即更新搜索索引。"
+                                    t("内容仅保存在本机，保存后会立即更新搜索索引。")
                                 }}</span>
                             </div>
-                            <button type="button" aria-label="关闭编辑器" on:click=move |_| {
+                            <button type="button" aria-label=move || t("关闭编辑器") on:click=move |_| {
                                 set_content_editor_open.set(false);
                                 set_content_editor_id.set(None);
                                 set_content_editor_rename_only.set(false);
                             }>"×"</button>
                         </header>
                         {move || (!content_editor_rename_only.get()).then(|| view! {
-                            <div class="content-kind-picker" aria-label="内容类型">
+                            <div class="content-kind-picker" aria-label=move || t("内容类型")>
                                 {[(ContentKind::Text, "文本"), (ContentKind::Link, "链接"), (ContentKind::Color, "颜色")]
                                     .into_iter()
                                     .map(|(kind, label)| view! {
@@ -4051,19 +4109,19 @@ pub fn App() -> impl IntoView {
                                                     set_content_editor_value.set("#ff9500".into());
                                                 }
                                             }
-                                        >{label}</button>
+                                        >{move || t(label)}</button>
                                     })
                                     .collect_view()}
                             </div>
                         })}
                         {move || content_editor_id.get().is_some().then(|| view! {
                             <label class="content-title-field">
-                                <span>"标题"</span>
+                                <span>{move || t("标题")}</span>
                                 <input
                                     type="text"
                                     autofocus=move || content_editor_rename_only.get()
                                     maxlength="80"
-                                    placeholder="留空则使用内容首行"
+                                    placeholder=move || t("留空则使用内容首行")
                                     prop:value=move || content_editor_title.get()
                                     on:input=move |event| {
                                         set_content_editor_title.set(event_target_value(&event));
@@ -4077,7 +4135,7 @@ pub fn App() -> impl IntoView {
                                 <div class="color-edit-row">
                                     <input
                                         type="color"
-                                        aria-label="选择颜色"
+                                        aria-label=move || t("选择颜色")
                                         prop:value=move || {
                                             let value = content_editor_value.get();
                                             crate::card_visual::color_swatch(ContentKind::Color, &value)
@@ -4090,7 +4148,7 @@ pub fn App() -> impl IntoView {
                                     <input
                                         type="text"
                                         autofocus=true
-                                        aria-label="十六进制颜色值"
+                                        aria-label=move || t("十六进制颜色值")
                                         maxlength="7"
                                         placeholder="#ff9500"
                                         prop:value=move || content_editor_value.get()
@@ -4104,13 +4162,13 @@ pub fn App() -> impl IntoView {
                                 view! {
                                 <textarea
                                     autofocus=true
-                                    aria-label="内容"
+                                    aria-label=move || t("内容")
                                     maxlength="4194304"
                                     spellcheck=move || (content_editor_kind.get() == ContentKind::Text).to_string()
                                     placeholder=move || if content_editor_kind.get() == ContentKind::Link {
                                         "https://example.com"
                                     } else {
-                                        "输入要保存的文本…"
+                                        t("输入要保存的文本…")
                                     }
                                     prop:value=move || content_editor_value.get()
                                     on:input=move |event| {
@@ -4121,24 +4179,24 @@ pub fn App() -> impl IntoView {
                             }
                         })}
                         {move || error.get().map(|message| view! {
-                            <p class="content-editor-error" role="alert">{message}</p>
+                            <p class="content-editor-error" role="alert">{move || t(&message).to_owned()}</p>
                         })}
                         <footer>
                             <span>{move || if content_editor_rename_only.get() {
-                                "标题可用于搜索；原始格式和内容保持不变。"
+                                t("标题可用于搜索；原始格式和内容保持不变。")
                             } else if content_editor_id.get().is_some() {
-                                "保存会保留 Pinboard 归属，并把编辑后的项目移到历史最前。"
+                                t("保存会保留 Pinboard 归属，并把编辑后的项目移到历史最前。")
                             } else {
-                                "新项目的标题会自动取内容首行。"
+                                t("新项目的标题会自动取内容首行。")
                             }}</span>
                             <div>
                                 <button type="button" on:click=move |_| {
                                 set_content_editor_open.set(false);
                                 set_content_editor_id.set(None);
                                 set_content_editor_rename_only.set(false);
-                            }>"取消"</button>
+                            }>{move || t("取消")}</button>
                             <button class="save-content" type="button" on:click=save_content>
-                                {move || if content_editor_rename_only.get() { "重命名" } else { "保存" }}
+                                {move || if content_editor_rename_only.get() { t("重命名") } else { t("保存") }}
                             </button>
                             </div>
                         </footer>
@@ -4147,7 +4205,7 @@ pub fn App() -> impl IntoView {
             </dialog>
 
             <p class="sr-only" id="history-keyboard-help">
-                {move || format!("当前载入 {} 项。左右箭头选择，Shift 扩展选择，Home 和 End 到已载入内容首尾。Space 预览，F2 进入卡片操作；Tab 切换按钮，Esc 或 F2 返回卡片。", clips.with(Vec::len))}
+                {move || localized_format!("当前载入 {} 项。左右箭头选择，Shift 扩展选择，Home 和 End 到已载入内容首尾。Space 预览，F2 进入卡片操作；Tab 切换按钮，Esc 或 F2 返回卡片。", "{} items loaded. Use Left and Right to select, Shift to extend selection, Home and End for first and last loaded items, Space to preview, F2 for card actions, Tab between buttons, and Esc or F2 to return to the card.", clips.with(Vec::len))}
             </p>
             <section class="timeline" id="history-results" node_ref=results_view tabindex="0"
                 role=move || if clips.with(Vec::is_empty) { "region" } else { "grid" }
@@ -4158,7 +4216,7 @@ pub fn App() -> impl IntoView {
                 }
                 aria-describedby="history-keyboard-help"
                 aria-keyshortcuts="F2 Home End"
-                title="左右箭头选择 · Space 预览 · F2 卡片操作"
+                title=move || t("左右箭头选择 · Space 预览 · F2 卡片操作")
                 on:focus=move |_| results_have_focus.set(true)
                 on:blur=move |_| results_have_focus.set(false)
                 data-drop-pinboard=move || (!search_active.get() && !results_pending.get()).then(|| active_pinboard.get().map(|id| id.to_string())).flatten()
@@ -4168,7 +4226,7 @@ pub fn App() -> impl IntoView {
                 on:mousedown:capture=move |event| trace_gesture.run(gesture_trace::mouse(GesturePhase::RootMouseDown, &event))
                 on:mousemove:capture=move |event| { if event.buttons() != 0 { trace_gesture.run(gesture_trace::mouse(GesturePhase::RootMouseMove, &event)); } }
                 on:mouseup:capture=move |event| trace_gesture.run(gesture_trace::mouse(GesturePhase::RootMouseUp, &event))
-                aria-label=move || if search_active.get() { "搜索结果" } else { "剪贴板时间线" }
+                aria-label=move || if search_active.get() { t("搜索结果") } else { t("剪贴板时间线") }
                 aria-busy=move || (placement_busy.get() || results_pending.get()).to_string()
                 class:drop-append=move || drop_target.get().is_some_and(|target| Some(target.pinboard_id) == active_pinboard.get() && target.anchor.is_none())
             >
@@ -4177,8 +4235,8 @@ pub fn App() -> impl IntoView {
                             <div class="empty-copy" role="status">
                             <div class="empty-mark" aria-hidden="true" inner_html=include_str!("../brand.svg")></div>
                             <div class="empty-message">
-                                <strong>{move || if results_pending.get() { "正在加载内容…" } else if error.get().is_some() { "暂时无法加载内容" } else if search_active.get() { "没有找到匹配内容" } else if active_pinboard.get().is_some() { "给这个分类放入第一条内容" } else { "留住每一次有用的复制" }}</strong>
-                                <span>{move || if results_pending.get() { "结果更新后即可选择，不会操作上一次查询的内容。" } else if error.get().is_some() { "请查看错误提示，稍后将自动重试。" } else if search_active.get() { "已搜索全部历史与 Pinboard；试试其他关键词或清除筛选。" } else if active_pinboard.get().is_some() { "从历史或其他 Pinboard 拖入便签，也可以新建内容。" } else if status.get().is_some_and(|state| state.isolated) { "当前仅使用合成数据，不监听系统剪贴板或连接 iCloud。" } else if status.get().is_some_and(|state| state.paused) { "剪贴板采集已暂停，恢复后才会收集新内容。" } else { "新复制的内容将保存在此处，机密与瞬态内容默认跳过。" }}</span>
+                                <strong>{move || if results_pending.get() { t("正在加载内容…") } else if error.get().is_some() { t("暂时无法加载内容") } else if search_active.get() { t("没有找到匹配内容") } else if active_pinboard.get().is_some() { t("给这个分类放入第一条内容") } else { t("留住每一次有用的复制") }}</strong>
+                                <span>{move || if results_pending.get() { t("结果更新后即可选择，不会操作上一次查询的内容。") } else if error.get().is_some() { t("请查看错误提示，稍后将自动重试。") } else if search_active.get() { t("已搜索全部历史与 Pinboard；试试其他关键词或清除筛选。") } else if active_pinboard.get().is_some() { t("从历史或其他 Pinboard 拖入便签，也可以新建内容。") } else if status.get().is_some_and(|state| state.isolated) { t("当前仅使用合成数据，不监听系统剪贴板或连接 iCloud。") } else if status.get().is_some_and(|state| state.paused) { t("剪贴板采集已暂停，恢复后才会收集新内容。") } else { t("新复制的内容将保存在此处，机密与瞬态内容默认跳过。") }}</span>
                             </div>
                             </div>
                             <Show when=move || !results_pending.get() && error.get().is_none()>
@@ -4190,9 +4248,9 @@ pub fn App() -> impl IntoView {
                                         set_history_offset.set(0); set_selected.set(0);
                                         set_selected_ids.set(HashSet::new()); set_selection_anchor.set(0);
                                         if let Some(input) = search_input.get() { let _ = input.focus(); }
-                                    }>"清除搜索与筛选"</button> }.into_any()
+                                    }>{move || t("清除搜索与筛选")}</button> }.into_any()
                                 } else {
-                                    view! { <button class="empty-action content-action" type="button" on:click=open_new_item>"＋ 新建内容"</button> }.into_any()
+                                    view! { <button class="empty-action content-action" type="button" on:click=open_new_item>{move || t("＋ 新建内容")}</button> }.into_any()
                                 }}
                             </Show>
                         </div>
@@ -4274,38 +4332,48 @@ pub fn App() -> impl IntoView {
                 let permission_required = message.contains("自动粘贴需要") && message.contains("辅助功能");
                 view! {
                     <div class="error-banner" role="status">
-                        <span>{message}</span>
+                        <span>{move || t(&message).to_owned()}</span>
                         {permission_required.then(|| view! {
                             <button class="permission-help-button" type="button" on:click=move |_| {
                                 change_settings.run(true);
                                 settings_tab.set("general");
                                 settings_focus_target.set(Some("permission"));
-                            }>"设置自动粘贴"</button>
+                            }>{move || t("设置自动粘贴")}</button>
                         })}
                     </div>
                 }
             })}
             {move || (error.get().is_none()).then(|| notice.get()).flatten().map(|message| view! {
-                <div class="notice-banner" role="status">{message}</div>
+                <div class="notice-banner" role="status">{move || t(&message).to_owned()}</div>
             })}
             {move || status.get().and_then(|value| value.last_error).map(|message| view! {
-                <div class="error-banner capture-error" role="status">{message}</div>
+                <div class="error-banner capture-error" role="status">{move || t(&message).to_owned()}</div>
             })}
             </div>
             {move || settings_open.get().then(|| view! {
-                <aside class="settings-popover" role="dialog" aria-label="CopyRail 设置">
-                    <header><strong>"设置"</strong><button type="button" aria-label="关闭设置" on:click=move |_| set_settings_open.set(false)>"×"</button></header>
+                <aside class="settings-popover" role="dialog" aria-label=move || t("CopyRail 设置")>
+                    <header><strong>{move || t("设置")}</strong><button type="button" aria-label=move || t("关闭设置") on:click=move |_| set_settings_open.set(false)>"×"</button></header>
                     <div class="settings-layout">
-                    <nav class="settings-nav" aria-label="设置分类">
-                        <button type="button" class:active=move || settings_tab.get() == "general" aria-current=move || (settings_tab.get() == "general").then_some("page") on:click=move |_| settings_tab.set("general")>"通用"</button>
-                        <button type="button" class:active=move || settings_tab.get() == "shortcuts" aria-current=move || (settings_tab.get() == "shortcuts").then_some("page") on:click=move |_| { settings_tab.set("shortcuts"); settings_focus_target.set(Some("shortcuts")); }>"快捷键"</button>
-                        <button type="button" class:active=move || settings_tab.get() == "history" aria-current=move || (settings_tab.get() == "history").then_some("page") on:click=move |_| settings_tab.set("history")>"历史与隐私"</button>
-                        <button type="button" class:active=move || settings_tab.get() == "backup" aria-current=move || (settings_tab.get() == "backup").then_some("page") on:click=move |_| settings_tab.set("backup")>"备份"</button>
-                        <button type="button" class:active=move || settings_tab.get() == "advanced" aria-current=move || (settings_tab.get() == "advanced").then_some("page") on:click=move |_| settings_tab.set("advanced")>"高级"</button>
+                    <nav class="settings-nav" aria-label=move || t("设置分类")>
+                        <button type="button" class:active=move || settings_tab.get() == "general" aria-current=move || (settings_tab.get() == "general").then_some("page") on:click=move |_| settings_tab.set("general")>{move || t("通用")}</button>
+                        <button type="button" class:active=move || settings_tab.get() == "shortcuts" aria-current=move || (settings_tab.get() == "shortcuts").then_some("page") on:click=move |_| { settings_tab.set("shortcuts"); settings_focus_target.set(Some("shortcuts")); }>{move || t("快捷键")}</button>
+                        <button type="button" class:active=move || settings_tab.get() == "history" aria-current=move || (settings_tab.get() == "history").then_some("page") on:click=move |_| settings_tab.set("history")>{move || t("历史与隐私")}</button>
+                        <button type="button" class:active=move || settings_tab.get() == "backup" aria-current=move || (settings_tab.get() == "backup").then_some("page") on:click=move |_| settings_tab.set("backup")>{move || t("备份")}</button>
+                        <button type="button" class:active=move || settings_tab.get() == "advanced" aria-current=move || (settings_tab.get() == "advanced").then_some("page") on:click=move |_| settings_tab.set("advanced")>{move || t("高级")}</button>
                     </nav><div class="settings-content">
-                    <div class="settings-page" data-settings-page="general" hidden=move || settings_tab.get() != "general"><h2>"通用"</h2><p class="settings-description">"启动、显示与粘贴"</p>
+                    <div class="settings-page" data-settings-page="general" hidden=move || settings_tab.get() != "general"><h2>{move || t("通用")}</h2><p class="settings-description">{move || t("启动、显示与粘贴")}</p>
+                    <label class="language-setting">
+                        <span><strong>{move || t("语言")}</strong><small>{move || if language_saving.get() { t("正在保存语言…") } else { t("立即保存，无需重启。") }}</small></span>
+                        <select class="language-select" aria-label=move || t("界面语言")
+                            prop:value=move || { language_saving.get(); crate::i18n::language().code() }
+                            disabled=move || language_saving.get() || settings_saving.get() on:change=change_language>
+                            <option value="zh-CN">"简体中文"</option>
+                            <option value="en">"English"</option>
+                        </select>
+                    </label>
+                    <Show when=move || language_error.get()><p class="language-error" role="status">{move || t("无法保存语言，请重试。")}</p></Show>
                     <label class="toggle-setting">
-                        <span>"登录时自动启动"</span>
+                        <span>{move || t("登录时自动启动")}</span>
                         <input
                             type="checkbox"
                             prop:checked=move || desktop_preferences.get().launch_at_login
@@ -4315,7 +4383,7 @@ pub fn App() -> impl IntoView {
                         />
                     </label>
                     <label class="toggle-setting">
-                        <span>"紧凑卡片布局"</span>
+                        <span>{move || t("紧凑卡片布局")}</span>
                         <input
                             type="checkbox"
                             prop:checked=move || desktop_preferences.get().compact_mode
@@ -4324,16 +4392,16 @@ pub fn App() -> impl IntoView {
                             })
                         />
                     </label>
-                    <section class="queue-help" aria-label="顺序粘贴说明">
-                        <strong>"顺序粘贴"</strong>
-                        <p>"点卡片上的「＋」按顺序加入待粘贴列表。列表有内容时，回车优先粘贴第一条；再次唤起后可继续下一条。"</p>
-                        <p>"主界面的数字表示剩余条数。点击「顺序粘贴」清空列表，不会删除历史；仅复制或粘贴请求失败时不会移出该条。"</p>
+                    <section class="queue-help" aria-label=move || t("顺序粘贴说明")>
+                        <strong>{move || t("顺序粘贴")}</strong>
+                        <p>{move || t("点卡片上的「＋」按顺序加入待粘贴列表。列表有内容时，回车优先粘贴第一条；再次唤起后可继续下一条。")}</p>
+                        <p>{move || t("主界面的数字表示剩余条数。点击「顺序粘贴」清空列表，不会删除历史；仅复制或粘贴请求失败时不会移出该条。")}</p>
                     </section>
-                    <section class="permission-settings" aria-label="直接粘贴权限" tabindex="-1" node_ref=permission_section>
+                    <section class="permission-settings" aria-label=move || t("直接粘贴权限") tabindex="-1" node_ref=permission_section>
                         <div class="permission-summary">
                             <div>
-                                <strong>"直接粘贴"</strong>
-                                <span>"复制无需授权；向目标应用发送 ⌘V 需要 macOS 辅助功能权限。"</span>
+                                <strong>{move || t("直接粘贴")}</strong>
+                                <span>{move || t("复制无需授权；向目标应用发送 ⌘V 需要 macOS 辅助功能权限。")}</span>
                             </div>
                             <span
                                 class="permission-state"
@@ -4342,114 +4410,114 @@ pub fn App() -> impl IntoView {
                                     .is_some_and(|current| current.accessibility_trusted)
                             >
                                 {move || match permission_status.get() {
-                                    Some(current) if current.accessibility_trusted => "已授权",
-                                    Some(_) => "待授权",
-                                    None => "检测中",
+                                    Some(current) if current.accessibility_trusted => t("已授权"),
+                                    Some(_) => t("待授权"),
+                                    None => t("检测中"),
                                 }}
                             </span>
                         </div>
                         {move || permission_status.get().and_then(|current| current.app_path).map(|path| view! {
-                            <p class="permission-app-path">"当前运行的应用："<code>{path}</code></p>
+                            <p class="permission-app-path">{move || t("当前运行的应用：")}<code>{path}</code></p>
                         })}
-                        <details class="permission-troubleshooting"><summary>"授权故障排查"</summary><p class="permission-help">"系统开关已开启却仍显示待授权？内测更新后，旧授权可能仍绑定旧签名。先退出 CopyRail，在辅助功能列表选中旧 CopyRail，点“−”移除，再点“＋”添加上方路径的应用。重新打开并点“重新检测”。仅搬到 Applications 不会更新旧授权；授权后请回到目标输入框重新唤起，不会补发上次粘贴。"</p></details>
+                        <details class="permission-troubleshooting"><summary>{move || t("授权故障排查")}</summary><p class="permission-help">{move || t("系统开关已开启却仍显示待授权？内测更新后，旧授权可能仍绑定旧签名。先退出 CopyRail，在辅助功能列表选中旧 CopyRail，点“−”移除，再点“＋”添加上方路径的应用。重新打开并点“重新检测”。仅搬到 Applications 不会更新旧授权；授权后请回到目标输入框重新唤起，不会补发上次粘贴。")}</p></details>
                         <div class="permission-actions">
                             {move || (!permission_status
                                 .get()
                                 .is_some_and(|current| current.accessibility_trusted))
                                 .then(|| view! {
                                     <button type="button" on:click=request_accessibility>
-                                        "授权直接粘贴"
+                                        {move || t("授权直接粘贴")}
                                     </button>
                                 })}
-                            <button type="button" on:click=refresh_accessibility>"重新检测"</button>
+                            <button type="button" on:click=refresh_accessibility>{move || t("重新检测")}</button>
                         </div>
                     </section>
                     </div>
-                    <div class="settings-page" data-settings-page="shortcuts" hidden=move || settings_tab.get() != "shortcuts"><h2>"快捷键"</h2><p class="settings-description">"快速打开与键盘操作"</p>
-                    <section class="permission-settings shortcut-settings" aria-label="全局快捷键" tabindex="-1" node_ref=shortcut_section>
+                    <div class="settings-page" data-settings-page="shortcuts" hidden=move || settings_tab.get() != "shortcuts"><h2>{move || t("快捷键")}</h2><p class="settings-description">{move || t("快速打开与键盘操作")}</p>
+                    <section class="permission-settings shortcut-settings" aria-label=move || t("全局快捷键") tabindex="-1" node_ref=shortcut_section>
                         <div class="permission-summary">
                             <div>
-                                <strong>"全局快捷键 ⇧⌘V"</strong>
+                                <strong>{move || t("全局快捷键 ⇧⌘V")}</strong>
                                 <span>{move || match shortcut_status.get() {
-                                    Some(current) if current.isolated => "隔离验证不会注册系统快捷键。",
-                                    Some(current) if current.registered => "快捷键已注册；也可通过菜单栏「显示 CopyRail」打开。",
-                                    Some(_) => "快捷键暂不可用，可能已被其他软件占用。可从菜单栏「显示 CopyRail」打开；释放此组合键后点击「重新启用」。",
-                                    None => "正在读取快捷键状态；菜单栏入口仍可使用。",
+                                    Some(current) if current.isolated => t("隔离验证不会注册系统快捷键。"),
+                                    Some(current) if current.registered => t("快捷键已注册；也可通过菜单栏「显示 CopyRail」打开。"),
+                                    Some(_) => t("快捷键暂不可用，可能已被其他软件占用。可从菜单栏「显示 CopyRail」打开；释放此组合键后点击「重新启用」。"),
+                                    None => t("正在读取快捷键状态；菜单栏入口仍可使用。"),
                                 }}</span>
                             </div>
                             <span class="permission-state shortcut-state" class:granted=move || shortcut_status.get().is_some_and(|value| value.registered) role="status">
-                                {move || if shortcut_retrying.get() { "处理中" } else { match shortcut_status.get() {
-                                    Some(current) if current.isolated => "隔离未注册",
-                                    Some(current) if current.registered => "已注册",
-                                    Some(_) => "未启用",
-                                    None => "未知",
+                                {move || if shortcut_retrying.get() { t("处理中") } else { match shortcut_status.get() {
+                                    Some(current) if current.isolated => t("隔离未注册"),
+                                    Some(current) if current.registered => t("已注册"),
+                                    Some(_) => t("未启用"),
+                                    None => t("未知"),
                                 }}}
                             </span>
                         </div>
-                        {move || shortcut_request_error.get().map(|message| view! { <p class="shortcut-request-error" role="status">{message}</p> })}
+                        {move || shortcut_request_error.get().map(|message| view! { <p class="shortcut-request-error" role="status">{move || t(&message).to_owned()}</p> })}
                         {move || shortcut_status.get().and_then(|value| value.error).map(|message| view! {
-                            <details class="shortcut-details"><summary>"技术详情"</summary><code>{message}</code></details>
+                            <details class="shortcut-details"><summary>{move || t("技术详情")}</summary><code>{move || t(&message).to_owned()}</code></details>
                         })}
                         <div class="permission-actions">
-                            <button class="shortcut-refresh" type="button" disabled=move || shortcut_retrying.get() on:click=move |_| refresh_shortcut.run(())>"重新检测"</button>
-                            <button class="shortcut-retry" type="button" disabled=move || shortcut_retrying.get() || shortcut_status.get().is_none_or(|value| value.isolated || value.registered) on:click=retry_shortcut>{move || if shortcut_retrying.get() { "正在启用…" } else { "重新启用" }}</button>
+                            <button class="shortcut-refresh" type="button" disabled=move || shortcut_retrying.get() on:click=move |_| refresh_shortcut.run(())>{move || t("重新检测")}</button>
+                            <button class="shortcut-retry" type="button" disabled=move || shortcut_retrying.get() || shortcut_status.get().is_none_or(|value| value.isolated || value.registered) on:click=retry_shortcut>{move || if shortcut_retrying.get() { t("正在启用…") } else { t("重新启用") }}</button>
                         </div>
                     </section>
-                    <dl class="keyboard-reference" aria-label="界面快捷键">
-                        <div><dt>"选择内容"</dt><dd><kbd>"← / →"</kbd></dd></div>
-                        <div><dt>"预览 / 关闭预览"</dt><dd><kbd>"Space"</kbd></dd></div>
-                        <div><dt>"粘贴"</dt><dd><kbd>"Return"</kbd></dd></div>
-                        <div><dt>"以纯文本粘贴"</dt><dd><kbd>"⇧ Return"</kbd></dd></div>
-                        <div><dt>"复制"</dt><dd><kbd>"⌘ C"</kbd></dd></div>
-                        <div><dt>"加入 / 移出顺序粘贴"</dt><dd><kbd>"⌘ Return"</kbd></dd></div>
-                        <div><dt>"关闭预览、设置或主界面"</dt><dd><kbd>"Esc"</kbd></dd></div>
+                    <dl class="keyboard-reference" aria-label=move || t("界面快捷键")>
+                        <div><dt>{move || t("选择内容")}</dt><dd><kbd>"← / →"</kbd></dd></div>
+                        <div><dt>{move || t("预览 / 关闭预览")}</dt><dd><kbd>"Space"</kbd></dd></div>
+                        <div><dt>{move || t("粘贴")}</dt><dd><kbd>"Return"</kbd></dd></div>
+                        <div><dt>{move || t("以纯文本粘贴")}</dt><dd><kbd>"⇧ Return"</kbd></dd></div>
+                        <div><dt>{move || t("复制")}</dt><dd><kbd>"⌘ C"</kbd></dd></div>
+                        <div><dt>{move || t("加入 / 移出顺序粘贴")}</dt><dd><kbd>"⌘ Return"</kbd></dd></div>
+                        <div><dt>{move || t("关闭预览、设置或主界面")}</dt><dd><kbd>"Esc"</kbd></dd></div>
                     </dl>
                     </div>
-                    <div class="settings-page" data-settings-page="history" hidden=move || settings_tab.get() != "history"><h2>"历史与隐私"</h2><p class="settings-description">"保留范围与忽略规则"</p>
-                    <section class="capture-settings" aria-label="剪贴板采集">
-                        <div><strong>"剪贴板采集"</strong><p>"暂停期间不保存新复制的内容，15 分钟后自动恢复。"</p></div>
+                    <div class="settings-page" data-settings-page="history" hidden=move || settings_tab.get() != "history"><h2>{move || t("历史与隐私")}</h2><p class="settings-description">{move || t("保留范围与忽略规则")}</p>
+                    <section class="capture-settings" aria-label=move || t("剪贴板采集")>
+                        <div><strong>{move || t("剪贴板采集")}</strong><p>{move || t("暂停期间不保存新复制的内容，15 分钟后自动恢复。")}</p></div>
                         {move || if capture_isolated.get() {
-                            view! { <span>"隔离验证不采集系统剪贴板。"</span> }.into_any()
+                            view! { <span>{move || t("隔离验证不采集系统剪贴板。")}</span> }.into_any()
                         } else { view! {
                             <button class="status-button" type="button"
                                 class:paused=move || pending_capture_control().is_none() && status.get().is_some_and(|value| value.paused)
                                 class:pending=move || pending_capture_control().is_some()
                                 aria-disabled=move || if pending_capture_control().is_some() { "true" } else { "false" }
                                 aria-busy=move || if pending_capture_control().is_some() { "true" } else { "false" }
-                                title=move || if pending_capture_control().is_some() { "尚未确认生效；等待当前读取或写入结束，请暂勿复制敏感内容。" } else { "控制剪贴板采集" }
+                                title=move || if pending_capture_control().is_some() { t("尚未确认生效；等待当前读取或写入结束，请暂勿复制敏感内容。") } else { t("控制剪贴板采集") }
                                 on:click=move |event| if status.get_untracked().is_some_and(|value| value.paused) { resume(event) } else { pause(event) }
                             >
                                 {move || match pending_capture_control().as_deref() {
-                                    Some("pause") => "正在暂停…".into(),
-                                    Some("resume") => "正在恢复…".into(),
-                                    Some(_) => "正在应用设置…".into(),
-                                    None => status.get().filter(|value| value.paused).as_ref().map_or_else(|| "暂停 15 分钟".into(), pause_label),
+                                    Some("pause") => t("正在暂停…").into(),
+                                    Some("resume") => t("正在恢复…").into(),
+                                    Some(_) => t("正在应用设置…").into(),
+                                    None => status.get().filter(|value| value.paused).as_ref().map_or_else(|| t("暂停 15 分钟").into(), pause_label),
                                 }}
                             </button>
                         }.into_any() }}
                     </section>
                     <label>
-                        <span>"最多保留天数"</span>
+                        <span>{move || t("最多保留天数")}</span>
                         <input
                             type="number"
                             min="1"
-                            placeholder="永久"
+                            placeholder=move || t("永久")
                             prop:value=move || retention_days.get()
                             on:input=move |event| set_retention_days.set(event_target_value(&event))
                         />
                     </label>
                     <label>
-                        <span>"最多保留未固定项目"</span>
+                        <span>{move || t("最多保留未固定项目")}</span>
                         <input
                             type="number"
                             min="1"
-                            placeholder="不限"
+                            placeholder=move || t("不限")
                             prop:value=move || retention_items.get()
                             on:input=move |event| set_retention_items.set(event_target_value(&event))
                         />
                     </label>
                     <label class="excluded-apps">
-                        <span>"忽略这些应用（每行一个 Bundle ID）"</span>
+                        <span>{move || t("忽略这些应用（每行一个 Bundle ID）")}</span>
                         <textarea
                             placeholder="com.example.password-manager"
                             prop:value=move || excluded_apps.get()
@@ -4457,7 +4525,7 @@ pub fn App() -> impl IntoView {
                         ></textarea>
                     </label>
                     <label class="toggle-setting">
-                        <span>"屏幕共享时隐藏内容"</span>
+                        <span>{move || t("屏幕共享时隐藏内容")}</span>
                         <input
                             type="checkbox"
                             prop:checked=move || desktop_preferences.get().screen_share_protection
@@ -4466,78 +4534,78 @@ pub fn App() -> impl IntoView {
                             })
                         />
                     </label>
-                    <p>"固定到 Pinboard 的内容不会被保留策略清理。机密和瞬态剪贴板类型始终默认跳过。"</p>
+                    <p>{move || t("固定到 Pinboard 的内容不会被保留策略清理。机密和瞬态剪贴板类型始终默认跳过。")}</p>
                     </div>
-                    <div class="settings-page" data-settings-page="backup" hidden=move || settings_tab.get() != "backup"><h2>"备份"</h2><p class="settings-description">"导出与恢复本地数据"</p>
-                    <section class="backup-settings" aria-label="本地备份">
+                    <div class="settings-page" data-settings-page="backup" hidden=move || settings_tab.get() != "backup"><h2>{move || t("备份")}</h2><p class="settings-description">{move || t("导出与恢复本地数据")}</p>
+                    <section class="backup-settings" aria-label=move || t("本地备份")>
                         <div>
-                            <strong>"本地备份"</strong>
-                            <span>"包含历史、Pinboards 与本地设置；不上传到云端。"</span>
+                            <strong>{move || t("本地备份")}</strong>
+                            <span>{move || t("包含历史、Pinboards 与本地设置；不上传到云端。")}</span>
                         </div>
                         <div class="backup-actions">
-                            <button type="button" on:click=export_backup>"导出备份"</button>
+                            <button type="button" on:click=export_backup>{move || t("导出备份")}</button>
                             <button class="restore-backup" type="button" on:click=restore_backup>
-                                "恢复备份"
+                                {move || t("恢复备份")}
                             </button>
                         </div>
                     </section>
                     </div>
-                    <div class="settings-page" data-settings-page="advanced" hidden=move || settings_tab.get() != "advanced"><h2>"高级"</h2><p class="settings-description">"本机集成与实验功能"</p>
-                    <section class="sync-settings" aria-label="iCloud 同步状态">
+                    <div class="settings-page" data-settings-page="advanced" hidden=move || settings_tab.get() != "advanced"><h2>{move || t("高级")}</h2><p class="settings-description">{move || t("本机集成与实验功能")}</p>
+                    <section class="sync-settings" aria-label=move || t("iCloud 同步状态")>
                         <div class="sync-heading">
                             <div>
-                                <strong>"iCloud 同步"</strong>
+                                <strong>{move || t("iCloud 同步")}</strong>
                                 <span>{move || match sync_status.get() {
-                                    Some(current) if current.enabled && current.blocked_reason.is_some() => current.blocked_reason.unwrap_or_default(),
+                                    Some(current) if current.enabled && current.blocked_reason.is_some() => t(&current.blocked_reason.unwrap_or_default()).to_owned(),
                                     Some(current) if current.pending_shared_downloads > 0 => {
-                                        format!("{} 项共享变更等待本地整合 · 完整共享同步仍在建设中", current.pending_shared_downloads)
+                                        localized_format!("{} 项共享变更等待本地整合 · 完整共享同步仍在建设中", "{} shared changes awaiting local integration · Full sharing is still in development", current.pending_shared_downloads)
                                     }
                                     Some(current) if current.pending_conflicts > 0 => {
-                                        format!("{} 个并发编辑待处理 · {} 项待发送", current.pending_conflicts, current.pending_changes)
+                                        localized_format!("{} 个并发编辑待处理 · {} 项待发送", "{} conflicts to resolve · {} changes pending", current.pending_conflicts, current.pending_changes)
                                     }
                                     Some(current) if current.pending_dependencies > 0 => {
-                                        format!("{} 项固定关系等待内容到齐 · {} 项待发送", current.pending_dependencies, current.pending_changes)
+                                        localized_format!("{} 项固定关系等待内容到齐 · {} 项待发送", "{} pin assignments awaiting content · {} changes pending", current.pending_dependencies, current.pending_changes)
                                     }
                                     Some(current) if current.syncing => {
-                                        format!("正在安全同步 · {} 项待发送", current.pending_changes)
+                                        localized_format!("正在安全同步 · {} 项待发送", "Syncing securely · {} changes pending", current.pending_changes)
                                     }
                                     Some(current) if current.cloud_transport_configured && current.enabled => {
                                         current.last_success_at_ms.map_or_else(
-                                            || format!("CloudKit 已配置 · 待发送 {} 项", current.pending_changes),
-                                            |last_success| format!("上次同步 {} · 待发送 {} 项", relative_timestamp_ms(last_success), current.pending_changes),
+                                            || localized_format!("CloudKit 已配置 · 待发送 {} 项", "CloudKit configured · {} changes pending", current.pending_changes),
+                                            |last_success| localized_format!("上次同步 {} · 待发送 {} 项", "Last synced {} · {} changes pending", relative_timestamp_ms(last_success), current.pending_changes),
                                         )
                                     }
-                                    Some(current) if current.enabled => current.blocked_reason.unwrap_or_else(|| {
-                                        format!("同步已选择启用 · {} 项待发送", current.pending_changes)
+                                    Some(current) if current.enabled => current.blocked_reason.map(|reason| t(&reason).to_owned()).unwrap_or_else(|| {
+                                        localized_format!("同步已选择启用 · {} 项待发送", "Sync enabled · {} changes pending", current.pending_changes)
                                     }),
                                     Some(current) if current.local_outbox_ready => {
-                                        format!("已关闭 · 本地队列保留 {} 项，不连接 CloudKit", current.pending_changes)
+                                        localized_format!("已关闭 · 本地队列保留 {} 项，不连接 CloudKit", "Disabled · {} changes kept locally, no CloudKit connection", current.pending_changes)
                                     }
-                                    Some(_) => "本地同步队列不可用".into(),
-                                    None => "正在检查本地同步状态…".into(),
+                                    Some(_) => t("本地同步队列不可用").into(),
+                                    None => t("正在检查本地同步状态…").into(),
                                 }}</span>
                             </div>
                             <input
-                                aria-label="启用 iCloud 同步"
+                                aria-label=move || t("启用 iCloud 同步")
                                 type="checkbox"
                                 prop:checked=move || sync_status.get().is_some_and(|value| value.enabled)
                                 on:change=toggle_cloud_sync
                             />
                         </div>
                         {move || sync_status.get().filter(|s| s.pending_shared_conflicts > 0).map(|s| view! {
-                            <p role="status">{format!("{} 个共享并发编辑待选择，双方内容均已保留。", s.pending_shared_conflicts)}</p>
+                            <p role="status">{localized_format!("{} 个共享并发编辑待选择，双方内容均已保留。", "{} shared conflicts need a choice. Both versions have been preserved.", s.pending_shared_conflicts)}</p>
                         })}
                     </section>
                     <SyncConflictList conflicts=sync_conflicts resolving=resolving_conflicts on_resolve=resolve_sync_conflict />
                     <SharedConflictList conflicts=shared_conflicts resolving=resolving_shared_conflicts on_resolve=resolve_shared_conflict />
-                    <section class="mcp-settings" aria-label="MCP 本地访问">
+                    <section class="mcp-settings" aria-label=move || t("MCP 本地访问")>
                         <div class="mcp-heading">
                             <div>
-                                <strong>"MCP 本地访问"</strong>
-                                <span>"让明确授权的 AI 客户端通过本机 stdio 搜索、读取和整理历史。默认关闭，不开放网络端口。"</span>
+                                <strong>{move || t("MCP 本地访问")}</strong>
+                                <span>{move || t("让明确授权的 AI 客户端通过本机 stdio 搜索、读取和整理历史。默认关闭，不开放网络端口。")}</span>
                             </div>
                             <input
-                                aria-label="启用 MCP 本地访问"
+                                aria-label=move || t("启用 MCP 本地访问")
                                 type="checkbox"
                                 prop:checked=move || mcp_status.get().is_some_and(|value| value.enabled)
                                 on:change=toggle_mcp
@@ -4547,49 +4615,49 @@ pub fn App() -> impl IntoView {
                             <input
                                 type="text"
                                 maxlength="80"
-                                placeholder="客户端名称，例如 Codex"
+                                placeholder=move || t("客户端名称，例如 Codex")
                                 prop:value=move || mcp_client_name.get()
                                 on:input=move |event| set_mcp_client_name.set(event_target_value(&event))
                             />
-                            <button type="button" on:click=create_mcp_connection>"创建并启用"</button>
+                            <button type="button" on:click=create_mcp_connection>{move || t("创建并启用")}</button>
                         </div>
                         <div class="mcp-clients">
                             {move || match mcp_status.get() {
                                 Some(current) if current.clients.is_empty() => view! {
-                                    <span class="mcp-empty">"尚未授权客户端"</span>
+                                    <span class="mcp-empty">{move || t("尚未授权客户端")}</span>
                                 }.into_any(),
                                 Some(current) => current.clients.into_iter().map(|client| {
                                     let client_id = client.id.clone();
                                     let last_used = client.last_used_at
                                         .as_deref()
-                                        .unwrap_or("尚未使用")
+                                        .unwrap_or(t("尚未使用"))
                                         .to_owned();
                                     view! {
-                                        <div class="mcp-client-row" title=format!("创建于 {} · 最后使用 {}", client.created_at, last_used)>
+                                        <div class="mcp-client-row" title=localized_format!("创建于 {} · 最后使用 {}", "Created {} · Last used {}", client.created_at, last_used)>
                                             <span>{client.display_name}</span>
                                             <button
                                                 type="button"
                                                 on:click=move |_| revoke_mcp_connection.run(client_id.clone())
-                                            >"撤销"</button>
+                                            >{move || t("撤销客户端")}</button>
                                         </div>
                                     }
                                 }).collect_view().into_any(),
                                 None => view! {
-                                    <span class="mcp-empty">"正在检查授权状态…"</span>
+                                    <span class="mcp-empty">{move || t("正在检查授权状态…")}</span>
                                 }.into_any(),
                             }}
                         </div>
                         {move || mcp_connection_config.get().map(|configuration| view! {
                             <div class="mcp-config-once">
-                                <strong>"仅显示一次的连接配置"</strong>
-                                <span>"其中包含访问凭据。保存到目标客户端后请关闭此面板；不要粘贴到聊天或提交到仓库。"</span>
+                                <strong>{move || t("仅显示一次的连接配置")}</strong>
+                                <span>{move || t("其中包含访问凭据。保存到目标客户端后请关闭此面板；不要粘贴到聊天或提交到仓库。")}</span>
                                 <textarea readonly prop:value=configuration></textarea>
                             </div>
                         })}
                     </section>
                     </div>
                     </div></div>
-                    <footer><span>"通用与隐私选项修改后保存"</span><button class="save-settings" type="button" on:click=save_settings>"保存设置"</button></footer>
+                    <footer><span>{move || t("通用与隐私选项修改后保存")}</span><button class="save-settings" type="button" disabled=move || language_saving.get() || settings_saving.get() on:click=save_settings>{move || t("保存设置")}</button></footer>
                 </aside>
             })}
 
@@ -4691,12 +4759,17 @@ fn ClipCard(
     });
     let summary = Memo::new(move |_| {
         clip.with(|item| {
-            crate::card_visual::text_summary(item.content_kind, &item.searchable_text)
-                .unwrap_or_else(|| item.source.display_name.clone())
+            crate::card_visual::text_summary(
+                item.content_kind,
+                &item.searchable_text,
+                crate::i18n::language(),
+            )
+            .unwrap_or_else(|| item.source.display_name.clone())
         })
     });
     let summary_title = move || summary.get();
-    let source_label = move || format!("来源：{}", source.get().display_name);
+    let source_label =
+        move || localized_format!("来源：{}", "Source: {}", source.get().display_name);
     let failed_source_icon = RwSignal::new(None::<String>);
     let visible_source_icon = Signal::derive(move || {
         source_icon
@@ -4782,7 +4855,7 @@ fn ClipCard(
                     preview_asset.get().map_or_else(
                         || view! { <p class="card-preview">{move || preview.get()}</p> }.into_any(),
                         |asset| view! {
-                            <img class="card-media" src=asset.data_url alt=move || if clip.with(|item| item.content_kind == ContentKind::Pdf) { "PDF 首页缩略图" } else { "剪贴板图片预览" } loading="lazy" draggable="false" />
+                            <img class="card-media" src=asset.data_url alt=move || if clip.with(|item| item.content_kind == ContentKind::Pdf) { t("PDF 首页缩略图") } else { t("剪贴板图片预览") } loading="lazy" draggable="false" />
                         }.into_any(),
                     )
                 }}
@@ -4796,7 +4869,7 @@ fn ClipCard(
                 </span>
                 <div class="card-provenance">
                     <span class="card-source-name">{move || source.get().display_name}</span>
-                <span class="card-summary" id=format!("clip-summary-{clip_id}") title=summary_title>{move || preview_asset.get().filter(|asset| asset.pixel_width > 0 && asset.pixel_height > 0).map_or_else(|| summary.get(), |asset| if clip.with(|item| item.content_kind == ContentKind::Pdf) { "PDF · 首页".to_owned() } else { format!("{} × {}", asset.pixel_width, asset.pixel_height) })}</span>
+                <span class="card-summary" id=format!("clip-summary-{clip_id}") title=summary_title>{move || preview_asset.get().filter(|asset| asset.pixel_width > 0 && asset.pixel_height > 0).map_or_else(|| summary.get(), |asset| if clip.with(|item| item.content_kind == ContentKind::Pdf) { t("PDF · 首页").to_owned() } else { format!("{} × {}", asset.pixel_width, asset.pixel_height) })}</span>
                 </div>
                 <div class="card-actions">
                 {move || (number <= 9).then(|| view! {
@@ -4807,8 +4880,8 @@ fn ClipCard(
                         class="locate-button"
                         type="button"
                         tabindex="-1"
-                        aria-label=move || clip.with(|item| format!("跳回历史位置：{}", item.title))
-                        title="跳回历史位置"
+                        aria-label=move || clip.with(|item| localized_format!("跳回历史位置：{}", "Show in history: {}", item.title))
+                        title=move || t("跳回历史位置")
                         on:click=move |event| {
                             event.stop_propagation();
                             on_locate.run(clip_id);
@@ -4820,9 +4893,9 @@ fn ClipCard(
                     class:active=move || stacked.get()
                     type="button"
                     tabindex="-1"
-                    aria-label=move || clip.with(|item| format!("加入或移出 顺序粘贴：{}", item.title))
+                    aria-label=move || clip.with(|item| localized_format!("加入或移出 顺序粘贴：{}", "Add to or remove from paste queue: {}", item.title))
                     aria-pressed=move || stacked.get().to_string()
-                    title="加入或移出 顺序粘贴（⌘↩）"
+                    title=move || t("加入或移出 顺序粘贴（⌘↩）")
                     on:click=move |event| {
                         event.stop_propagation();
                         on_toggle_stack.run(clip_id);
@@ -4865,18 +4938,18 @@ fn PdfDocumentPreview(clip_id: ClipId) -> impl IntoView {
     view! {
         {move || match result.get() {
             Some(Ok(asset)) if asset.media_type == "application/pdf" => view! {
-                <iframe class="preview-pdf" src=asset.data_url title="PDF 完整预览"></iframe>
+                <iframe class="preview-pdf" src=asset.data_url title=move || t("PDF 完整预览")></iframe>
             }.into_any(),
             Some(response) => {
-                let message = response.err().unwrap_or_else(|| "PDF 完整预览不可用。".into());
+                let message = response.err().unwrap_or_else(|| t("PDF 完整预览不可用。").into());
                 view! {
                     <div class="preview-loading" role="status">
-                        <p>{message}</p>
-                        <button type="button" on:click=move |_| load.run(())>"重试 PDF 预览"</button>
+                        <p>{move || t(&message).to_owned()}</p>
+                        <button type="button" on:click=move |_| load.run(())>{move || t("重试 PDF 预览")}</button>
                     </div>
                 }.into_any()
             },
-            None => view! { <div class="preview-loading" role="status">"正在加载完整 PDF…"</div> }.into_any(),
+            None => view! { <div class="preview-loading" role="status">{move || t("正在加载完整 PDF…")}</div> }.into_any(),
         }}
     }
 }
@@ -4911,7 +4984,7 @@ fn PreviewOverlay(
         view! { {move || preview.get().map_or_else(
             || {
                 if loading.get() {
-                    view! { <div class="preview-loading">"正在生成预览…"</div> }.into_any()
+                    view! { <div class="preview-loading">{move || t("正在生成预览…")}</div> }.into_any()
                 } else {
                     view! { <pre class="preview-text">{preview_text.clone()}</pre> }.into_any()
                 }
@@ -4921,7 +4994,7 @@ fn PreviewOverlay(
                     let dimensions = format!("{} × {}", asset.pixel_width, asset.pixel_height);
                     view! {
                         <figure class="preview-image">
-                            <img src=asset.data_url alt="剪贴板图片完整预览" />
+                            <img src=asset.data_url alt=t("剪贴板图片完整预览") />
                             <figcaption>{dimensions}</figcaption>
                         </figure>
                     }
@@ -4931,7 +5004,7 @@ fn PreviewOverlay(
                         <iframe
                             class="preview-pdf"
                             src=asset.data_url
-                            title="PDF 预览"
+                            title=move || t("PDF 预览")
                         ></iframe>
                     }
                     .into_any()
@@ -4941,45 +5014,45 @@ fn PreviewOverlay(
         .into_any()
     };
     view! {
-        <aside node_ref=preview_root class="preview-overlay" role="dialog" aria-modal="false" tabindex="-1" aria-label="Quick Look 预览">
+        <aside node_ref=preview_root class="preview-overlay" role="dialog" aria-modal="false" tabindex="-1" aria-label=move || t("Quick Look 预览")>
             <header>
                 <div>
                     <strong>{clip.title}</strong>
                     <span>{format!("{} · {}", kind_label(clip.content_kind), clip.source.display_name)}</span>
                 </div>
-                <button type="button" aria-label="关闭预览" on:click=move |_| on_close.run(())>"×"</button>
+                <button type="button" aria-label=move || t("关闭预览") on:click=move |_| on_close.run(())>"×"</button>
             </header>
             <div class="preview-content">{media}</div>
             <footer>
-                <span>"Esc 关闭 · Return 粘贴"</span>
+                <span>{move || t("Esc 关闭 · Return 粘贴")}</span>
                 {is_image.then(|| view! {
-                    <div class="preview-actions" aria-label="图片快速操作">
+                    <div class="preview-actions" aria-label=move || t("图片快速操作")>
                         <button
                             type="button"
                             disabled=move || editing.get() || recognizing.get()
-                            title="向左旋转"
+                            title=move || t("向左旋转")
                             on:click=move |_| on_rotate.run(-1)
                         >"↶"</button>
                         <button
                             type="button"
                             disabled=move || editing.get() || recognizing.get()
-                            title="向右旋转"
+                            title=move || t("向右旋转")
                             on:click=move |_| on_rotate.run(1)
-                        >{move || if editing.get() { "旋转中…" } else { "↷" }}</button>
+                        >{move || if editing.get() { t("旋转中…") } else { "↷" }}</button>
                         <button
                             type="button"
                             disabled=move || editing.get() || recognizing.get()
                             on:click=move |_| on_recognize.run(())
-                        >{move || if recognizing.get() { "识别中…" } else { "提取文字" }}</button>
+                        >{move || if recognizing.get() { t("识别中…") } else { t("提取文字") }}</button>
                     </div>
                 })}
                 {is_link.then(|| view! {
                     <div class="preview-actions">
                         <button
                             type="button"
-                            title="在 CopyRail 内置浏览器中打开（⌘O）"
+                            title=move || t("在 CopyRail 内置浏览器中打开（⌘O）")
                             on:click=move |_| on_open_link.run(())
-                        >"内置浏览器打开"</button>
+                        >{move || t("内置浏览器打开")}</button>
                     </div>
                 })}
             </footer>
@@ -5093,20 +5166,23 @@ fn relative_time(time: chrono::DateTime<chrono::Utc>) -> String {
 fn relative_timestamp_ms(timestamp_ms: i64) -> String {
     let seconds = ((chrono::Utc::now().timestamp_millis() - timestamp_ms) / 1_000).max(0);
     match seconds {
-        0..=59 => "刚刚".into(),
-        60..=3_599 => format!("{} 分钟前", seconds / 60),
-        3_600..=86_399 => format!("{} 小时前", seconds / 3_600),
-        _ => format!("{} 天前", seconds / 86_400),
+        0..=59 => t("刚刚").into(),
+        60..=3_599 => localized_format!("{} 分钟前", "{}m ago", seconds / 60),
+        3_600..=86_399 => localized_format!("{} 小时前", "{}h ago", seconds / 3_600),
+        _ => localized_format!("{} 天前", "{}d ago", seconds / 86_400),
     }
 }
 
 fn pause_label(status: &CaptureStatus) -> String {
     status.paused_until_ms.map_or_else(
-        || "暂停中 · 点击恢复".into(),
+        || t("暂停中 · 点击恢复").into(),
         |until| {
             let remaining_ms = (until - chrono::Utc::now().timestamp_millis()).max(0);
             let remaining_minutes = (remaining_ms + 59_999) / 60_000;
-            format!("暂停中 · {remaining_minutes} 分钟 · 点击恢复")
+            localized_format!(
+                "暂停中 · {remaining_minutes} 分钟 · 点击恢复",
+                "Paused · {remaining_minutes}m · Click to resume"
+            )
         },
     )
 }

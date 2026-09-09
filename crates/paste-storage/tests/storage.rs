@@ -1496,6 +1496,7 @@ fn persists_desktop_preferences() {
     );
 
     let expected = DesktopPreferences {
+        language: paste_domain::Language::Chinese,
         launch_at_login: true,
         screen_share_protection: true,
         compact_mode: true,
@@ -1780,4 +1781,61 @@ fn combines_source_device_date_filters_and_reports_facets() {
             .expect("older position"),
         1
     );
+}
+
+#[test]
+fn language_upgrade_roundtrip_isolated_update_and_failed_save() {
+    use paste_domain::Language;
+    let directory = tempfile::tempdir().expect("temporary store");
+    let path = directory.path().join("language.db");
+    let store = SqliteStore::open(&path).expect("open");
+    let sql = rusqlite::Connection::open(&path).expect("fixture connection");
+    // Existing installations have no language key. Keep their Chinese UI and options.
+    sql.execute(
+        "INSERT INTO settings (key, value, updated_at_ms) VALUES ('desktop_preferences', ?1, 0)",
+        [r#"{"launch_at_login":true,"screen_share_protection":true,"compact_mode":true}"#],
+    )
+    .expect("legacy preferences");
+    let previous = store.load_desktop_preferences().expect("legacy defaults");
+    assert_eq!(previous.language, Language::Chinese);
+    let capture = store
+        .load_capture_preferences()
+        .expect("capture preferences");
+    assert_eq!(
+        store
+            .save_language(Language::English)
+            .expect("save language"),
+        Language::English
+    );
+    drop(store);
+    let store = SqliteStore::open(&path).expect("reopen");
+    assert_eq!(
+        store.load_desktop_preferences().expect("reloaded"),
+        DesktopPreferences {
+            language: Language::English,
+            ..previous
+        }
+    );
+    assert_eq!(
+        store.load_capture_preferences().expect("capture unchanged"),
+        capture
+    );
+    // Reject the write at the database boundary: the previously saved choice survives.
+    sql.execute_batch("CREATE TRIGGER reject_language BEFORE UPDATE ON settings WHEN NEW.key = 'desktop_preferences' BEGIN SELECT RAISE(ABORT, 'synthetic write failure'); END;").expect("failure fixture");
+    assert!(store.save_language(Language::Chinese).is_err());
+    assert_eq!(
+        store
+            .load_desktop_preferences()
+            .expect("unchanged after failure")
+            .language,
+        Language::English
+    );
+    for (wire, language) in [("en", Language::English), ("zh-CN", Language::Chinese)] {
+        assert_eq!(
+            serde_json::from_value::<Language>(serde_json::json!(wire)).expect("language"),
+            language
+        );
+        assert_eq!(serde_json::to_value(language).expect("serialize"), wire);
+    }
+    assert!(serde_json::from_value::<Language>(serde_json::json!("xx")).is_err());
 }

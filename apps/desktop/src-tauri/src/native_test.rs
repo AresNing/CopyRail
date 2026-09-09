@@ -257,6 +257,7 @@ pub fn allows_command(command: &str) -> bool {
             | "get_mcp_access_status"
             | "get_capture_preferences"
             | "get_desktop_preferences"
+            | "set_language"
             | "capture_status"
             | "start_clip_drag"
             | "update_clip_drag_feedback" // Geometry only, active native session and main-window scoped.

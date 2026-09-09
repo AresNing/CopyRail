@@ -21,7 +21,7 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, screenshot, 
     await waitFor(`document.querySelectorAll('.clip-card').length === 5 && document.querySelector('.paste-shell').classList.contains('compact') === ${compact}`);
     // AX-style activation does not require the mouse to leave the old tab.
     // Keep hover over Clipboard while changing boards via their click action.
-    for (const [name,count] of [['工作',1],['收件箱',4],['归档',0],['Clipboard',5]]) {
+    for (const [name,count] of [['工作',1],['收件箱',4],['归档',0],['剪贴板',5]]) {
       await click(name);
       await waitFor(`document.querySelectorAll('.clip-card').length === ${count}`);
       // The manage button changes nav geometry: target the new bounds,

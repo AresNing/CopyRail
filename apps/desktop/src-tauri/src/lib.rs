@@ -21,6 +21,7 @@ mod editor_import;
 mod gesture_trace;
 #[allow(unsafe_code)]
 mod guarded_text_view;
+mod locale;
 pub mod mcp;
 #[allow(unsafe_code)]
 #[cfg(target_os = "macos")]
@@ -239,6 +240,7 @@ fn run_with_profile(native_test: Option<Arc<native_test::NativeTestProfile>>) {
                 commands::get_capture_preferences,
                 commands::update_capture_preferences,
                 commands::get_desktop_preferences,
+                commands::set_language,
                 commands::update_desktop_preferences,
                 commands::capture_status,
                 commands::pause_capture,
@@ -264,6 +266,7 @@ fn run_with_profile(native_test: Option<Arc<native_test::NativeTestProfile>>) {
             let device = store.get_or_create_device("This Mac")?;
             let preferences = store.load_capture_preferences()?;
             let desktop_preferences = store.load_desktop_preferences()?;
+            locale::set_language(desktop_preferences.language);
             let capture = if isolated {
                 CaptureService::isolated()
             } else {
@@ -297,12 +300,20 @@ fn run_with_profile(native_test: Option<Arc<native_test::NativeTestProfile>>) {
             });
             native_menu::install(app.handle(), isolated)?;
 
-            let show_item = MenuItem::with_id(app, "show", "显示 CopyRail", true, None::<&str>)?;
-            let pause_item =
-                MenuItem::with_id(app, "pause", "暂停采集 15 分钟", true, None::<&str>)?;
-            let resume_item = MenuItem::with_id(app, "resume", "继续采集", true, None::<&str>)?;
+            let show_item =
+                MenuItem::with_id(app, "show", locale::t("显示 CopyRail"), true, None::<&str>)?;
+            let pause_item = MenuItem::with_id(
+                app,
+                "pause",
+                locale::t("暂停采集 15 分钟"),
+                true,
+                None::<&str>,
+            )?;
+            let resume_item =
+                MenuItem::with_id(app, "resume", locale::t("继续采集"), true, None::<&str>)?;
             let separator = PredefinedMenuItem::separator(app)?;
-            let quit_item = MenuItem::with_id(app, "quit", "退出 CopyRail", true, None::<&str>)?;
+            let quit_item =
+                MenuItem::with_id(app, "quit", locale::t("退出 CopyRail"), true, None::<&str>)?;
             let tray_menu = Menu::with_items(
                 app,
                 &[
@@ -313,6 +324,12 @@ fn run_with_profile(native_test: Option<Arc<native_test::NativeTestProfile>>) {
                     &quit_item,
                 ],
             )?;
+            app.manage(native_menu::TrayLabels {
+                show: show_item.clone(),
+                pause: pause_item.clone(),
+                resume: resume_item.clone(),
+                quit: quit_item.clone(),
+            });
             TrayIconBuilder::with_id("pasters-tray")
                 .icon(tray_icon::template_icon())
                 .icon_as_template(true)

@@ -48,7 +48,7 @@ define_class!(
             let state = self.ivars();
             if state.saving.get() || state.text.is_importing() { return; }
             if writing_tools_active(&state.text) {
-                state.status.setStringValue(&NSString::from_str("请等待 Writing Tools 完成后再保存。"));
+                state.status.setStringValue(&NSString::from_str(crate::locale::t("请等待 Writing Tools 完成后再保存。")));
                 return;
             }
             let Some(storage) = (unsafe { state.text.textStorage() }) else { return; };
@@ -62,7 +62,7 @@ define_class!(
             };
             state.saving.set(true);
             state.text.setEditable(false);
-            state.status.setStringValue(&NSString::from_str("正在保存…"));
+            state.status.setStringValue(&NSString::from_str(crate::locale::t("正在保存…")));
             let store = Arc::clone(&state.store);
             let window = state.window.clone();
             let id = state.id;
@@ -110,10 +110,14 @@ impl Editor {
             && !storage.isEqualToAttributedString(&state.original)
         {
             let alert = NSAlert::new(self.mtm());
-            alert.setMessageText(&NSString::from_str("放弃尚未保存的修改？"));
-            alert.setInformativeText(&NSString::from_str("原来的剪贴板记录不会改变。"));
-            alert.addButtonWithTitle(&NSString::from_str("继续编辑"));
-            alert.addButtonWithTitle(&NSString::from_str("放弃更改"));
+            alert.setMessageText(&NSString::from_str(crate::locale::t(
+                "放弃尚未保存的修改？",
+            )));
+            alert.setInformativeText(&NSString::from_str(crate::locale::t(
+                "原来的剪贴板记录不会改变。",
+            )));
+            alert.addButtonWithTitle(&NSString::from_str(crate::locale::t("继续编辑")));
+            alert.addButtonWithTitle(&NSString::from_str(crate::locale::t("放弃更改")));
             if alert.runModal() != 1001 {
                 return;
             }
@@ -148,12 +152,14 @@ pub fn confirm_application_exit() -> bool {
         return true;
     }
     let alert = NSAlert::new(mtm);
-    alert.setMessageText(&NSString::from_str("有尚未保存的富文本修改"));
-    alert.setInformativeText(&NSString::from_str(
+    alert.setMessageText(&NSString::from_str(crate::locale::t(
+        "有尚未保存的富文本修改",
+    )));
+    alert.setInformativeText(&NSString::from_str(crate::locale::t(
         "继续编辑可保留草稿；退出会放弃所有未保存修改，原记录保持不变。",
-    ));
-    alert.addButtonWithTitle(&NSString::from_str("继续编辑"));
-    alert.addButtonWithTitle(&NSString::from_str("放弃并退出"));
+    )));
+    alert.addButtonWithTitle(&NSString::from_str(crate::locale::t("继续编辑")));
+    alert.addButtonWithTitle(&NSString::from_str(crate::locale::t("放弃并退出")));
     alert.runModal() == 1001
 }
 
@@ -178,7 +184,7 @@ pub fn open(
         return window.set_focus().map_err(|error| error.to_string());
     }
     if EDITORS.with(|editors| editors.borrow().len()) >= 8 {
-        return Err("请先关闭一个编辑窗口（最多 8 个）。".into());
+        return Err(crate::locale::t("请先关闭一个编辑窗口（最多 8 个）。").into());
     }
     let document = crate::rich_text::decode(&snapshot.representations)?;
     let protected = store
@@ -186,7 +192,11 @@ pub fn open(
         .map_err(|error| error.to_string())?
         .screen_share_protection;
     let window = tauri::window::WindowBuilder::new(app, &label)
-        .title(format!("编辑 · {}", snapshot.item.title))
+        .title(format!(
+            "{} · {}",
+            crate::locale::t("编辑"),
+            snapshot.item.title
+        ))
         .inner_size(720., 480.)
         .min_inner_size(640., 340.)
         .center()
@@ -230,12 +240,9 @@ pub fn open(
     }
     scroll.setDocumentView(Some(&text));
     let status = NSTextField::labelWithString(
-        &NSString::from_str(
-            document
-                .warning
-                .as_deref()
-                .unwrap_or("⌘S 保存 · Esc 取消；支持系统字体面板、撤销与右键文本操作。"),
-        ),
+        &NSString::from_str(document.warning.as_deref().unwrap_or(crate::locale::t(
+            "⌘S 保存 · Esc 取消；支持系统字体面板、撤销与右键文本操作。",
+        ))),
         mtm,
     );
     status.setFrame(rect(16., 16., 688., 44.));
@@ -261,7 +268,7 @@ pub fn open(
     let fonts = NSFontManager::sharedFontManager(mtm);
     let controls = [
         (
-            "字体…",
+            crate::locale::t("字体…"),
             &*fonts as &AnyObject,
             sel!(orderFrontFontPanel:),
             16.,
@@ -270,7 +277,7 @@ pub fn open(
             NSEventModifierFlags::empty(),
         ),
         (
-            "下划线",
+            crate::locale::t("下划线"),
             &*text as &AnyObject,
             sel!(underline:),
             104.,
@@ -279,7 +286,7 @@ pub fn open(
             NSEventModifierFlags::Command,
         ),
         (
-            "左对齐",
+            crate::locale::t("左对齐"),
             &*text as &AnyObject,
             sel!(alignLeft:),
             192.,
@@ -288,7 +295,7 @@ pub fn open(
             NSEventModifierFlags::empty(),
         ),
         (
-            "居中",
+            crate::locale::t("居中"),
             &*text as &AnyObject,
             sel!(alignCenter:),
             280.,
@@ -297,7 +304,7 @@ pub fn open(
             NSEventModifierFlags::empty(),
         ),
         (
-            "取消",
+            crate::locale::t("取消"),
             &*controller as &AnyObject,
             sel!(cancel:),
             512.,
@@ -306,7 +313,7 @@ pub fn open(
             NSEventModifierFlags::empty(),
         ),
         (
-            "保存",
+            crate::locale::t("保存"),
             &*controller as &AnyObject,
             sel!(save:),
             600.,
