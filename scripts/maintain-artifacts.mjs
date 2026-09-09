@@ -76,7 +76,7 @@ export function retainedVersions(names, current, running = []) {
   const sorted = [...names].sort(newestFirst);
   const chosen = selectCurrent(sorted, current);
   if (current) assert.ok(names.includes(chosen), 'Current version must have a valid delivery manifest');
-  const keep = new Set(chosen ? [chosen, ...sorted.filter(name => name !== chosen).slice(0, 3)] : []);
+  const keep = new Set(chosen ? [chosen, ...sorted.filter(name => name !== chosen).slice(0, 2)] : []);
   for (const name of running) keep.add(name);
   return keep;
 }
@@ -128,7 +128,7 @@ export async function planArtifacts(root, { current, processes = [], sweep = fal
   const running = versions.filter(name => inUse(join(output, name), processes));
   const keep = retainedVersions(versions, current, running);
   for (const name of versions.filter(name => !keep.has(name))) {
-    await add(`output/${name}`, 'older than current + 3 history versions');
+    await add(`output/${name}`, 'older than 3 retained versions (current included)');
     await add(`output/${name}.zip`, 'same expired release', 'file');
     await add(`output/${name}.zip.sha256`, 'same expired release', 'file');
   }
@@ -238,7 +238,7 @@ export async function maintain(root, { apply = false, current, sweep = false, pr
 async function main() {
   const args = process.argv.slice(2);
   if (args.join(' ') === '--help') {
-    console.log('Usage: node scripts/maintain-artifacts.mjs [--apply] [--sweep] [--current 0.1.0-local-beta.N]\nDefault: preview. Keeps current/latest + 3 history versions. --sweep also removes superseded loose binaries and archived bundle copies, after checking the retained delivery. Never starts/stops apps, installs or accesses user history.');
+    console.log('Usage: node scripts/maintain-artifacts.mjs [--apply] [--sweep] [--current 0.1.0-local-beta.N]\nDefault: preview. Keeps 3 versions total: current/latest + 2 history versions. --sweep also removes superseded loose binaries and archived bundle copies, after checking the retained delivery. Never starts/stops apps, installs or accesses user history.');
     return;
   }
   let apply = false, sweep = false, current;

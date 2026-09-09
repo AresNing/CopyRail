@@ -26,11 +26,11 @@ async function version(root, n) {
   await file(root, `output/${release(n)}.zip.sha256`);
 }
 
-test('retains current + 3 history versions with numeric rather than lexical sorting', () => {
+test('retains 3 versions total including current with numeric rather than lexical sorting', () => {
   const names = [1, 2, 3, 4, 9, 10].map(release);
-  assert.deepEqual([...retainedVersions(names)], [10, 9, 4, 3].map(release));
-  assert.deepEqual([...retainedVersions(names, '0.1.0-local-beta.2')], [2, 10, 9, 4].map(release));
-  assert.equal(retainedVersions(names, undefined, [release(1)]).size, 5);
+  assert.deepEqual([...retainedVersions(names)], [10, 9, 4].map(release));
+  assert.deepEqual([...retainedVersions(names, '0.1.0-local-beta.2')], [2, 10, 9].map(release));
+  assert.equal(retainedVersions(names, undefined, [release(1)]).size, 4);
   assert.throws(() => retainedVersions(names, '../../history'));
   assert.throws(() => retainedVersions(names, '0.1.0-local-beta.99'));
   assert.deepEqual([...retainedVersions([])], []);
@@ -44,10 +44,10 @@ test('preview does not delete; apply prunes entire expired release group, not so
     'target/debug/pasters-desktop', 'output/unrelated.zip'];
   for (const path of [...preserved, 'target/debug/deps/cache', 'target/debug/incremental/cache']) await file(root, path);
   const plan = await maintain(root, { processReader: () => [] });
-  assert.equal(plan.remove.length, 8);
+  assert.equal(plan.remove.length, 11);
   assert.equal((await readdir(join(root, 'output'))).length, 19);
   await maintain(root, { apply: true, processReader: () => [] });
-  assert.equal((await readdir(join(root, 'output'))).length, 13);
+  assert.equal((await readdir(join(root, 'output'))).length, 10);
   for (const path of preserved) assert.equal(await readFile(join(root, path), 'utf8'), 'fixture');
   assert.equal((await planArtifacts(root)).remove.length, 0);
 });
@@ -62,7 +62,7 @@ test('live release group and executable cache are protected', async t => {
   ];
   const plan = await planArtifacts(root, { processes });
   assert.ok(plan.keep.includes(release(1)));
-  assert.equal(plan.remove.length, 3);
+  assert.equal(plan.remove.length, 6);
   assert.equal(plan.skipped.length, 1);
 });
 
@@ -204,7 +204,7 @@ test('sweep inspects nested packaging freshness and never follows bundle symlink
 test('CopyRail and PasteRS releases share one numeric retention budget', () => {
   const names = [1, 2, 3].map(release).concat('CopyRail-0.1.0-local-beta.4', 'CopyRail-0.1.0-local-beta.10');
   assert.deepEqual([...retainedVersions(names, '0.1.0-local-beta.4')], [
-    'CopyRail-0.1.0-local-beta.4', 'CopyRail-0.1.0-local-beta.10', release(3), release(2),
+    'CopyRail-0.1.0-local-beta.4', 'CopyRail-0.1.0-local-beta.10', release(3),
   ]);
   assert.throws(() => retainedVersions([release(4), 'CopyRail-0.1.0-local-beta.4'], '0.1.0-local-beta.4'), /unambiguous/);
 });
@@ -224,9 +224,10 @@ test('sweep validates renamed bundle and prunes only its archived duplicate', as
   await mkdir(join(bundle, '..'), { recursive: true });
   await cp(join(root, `output/${name}/CopyRail.app`), bundle, { recursive: true });
   const plan = await planArtifacts(root, { sweep: true, current: '0.1.0-local-beta.4' });
-  assert.equal(plan.keep.length, 4);
-  assert.equal(plan.remove.length, 1);
-  assert.equal(plan.remove[0].path, bundle);
+  assert.equal(plan.keep.length, 3);
+  assert.equal(plan.remove.length, 4);
+  assert.ok(plan.remove.some(item => item.path === bundle));
   const protectedPlan = await planArtifacts(root, { sweep: true, processes: [{ executable: join(bundle, 'Contents/MacOS/pasters-desktop') }] });
-  assert.equal(protectedPlan.remove.length, 0);
+  assert.equal(protectedPlan.remove.length, 3);
+  assert.ok(protectedPlan.remove.every(item => !item.path.startsWith(bundle)));
 });

@@ -12,7 +12,7 @@ const fingerprint = async () => Object.fromEntries(await Promise.all((await read
   .map(async name => [name, createHash('sha256').update(await readFile(new URL(name, root))).digest('hex')])));
 const before = await fingerprint();
 await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, browser, artifacts }) => {
-  await page('Emulation.setDeviceMetricsOverride', { width: 960, height: 760, deviceScaleFactor: 1, mobile: false });
+  await page('Emulation.setDeviceMetricsOverride', { width: 1440, height: 248, deviceScaleFactor: 1, mobile: false });
   const key = async (key, code, virtual) => {
     await page('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: virtual });
     await page('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: virtual });
@@ -25,10 +25,13 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, browser, art
     await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
     await key(' ', 'Space', 32);
     await waitFor(`document.querySelector('.preview-overlay') && window.previewFrameFixture.open`);
+    await page('Emulation.setDeviceMetricsOverride', { width: 1440, height: 608, deviceScaleFactor: 1, mobile: false });
+    await waitFor(`document.activeElement?.classList.contains('preview-overlay')`);
   };
   const close = async () => {
     await evaluate(`window.dragEventFixture.emit('pasters-close-preview', null)`);
     await waitFor(`!document.querySelector('.preview-overlay') && document.activeElement?.id==='history-results' && !window.previewFrameFixture.open`);
+    await page('Emulation.setDeviceMetricsOverride', { width: 1440, height: 248, deviceScaleFactor: 1, mobile: false });
   };
   await page('Page.navigate', { url: `${fixture}/?fixture=visual` });
   await waitFor(`document.querySelectorAll('.clip-card').length===8`);

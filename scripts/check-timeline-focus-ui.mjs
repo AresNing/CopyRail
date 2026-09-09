@@ -32,7 +32,7 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, screenshot, 
     await evaluate(`document.querySelector('.kind-text').click()`);
     await key(' ', 'Space', 32);
     await waitFor(`document.querySelector('.preview-text') && window.previewFrameFixture.open`);
-    await page('Emulation.setDeviceMetricsOverride', { width: 960, height: 760, deviceScaleFactor: 2, mobile: false });
+    await page('Emulation.setDeviceMetricsOverride', { width: 1440, height: 608, deviceScaleFactor: 2, mobile: false });
     await key('Escape', 'Escape', 27);
     await waitFor(`!document.querySelector('.preview-overlay') && !window.previewFrameFixture.open && document.activeElement?.id === 'history-results'`);
     await page('Emulation.setDeviceMetricsOverride', { width: 1440, height: 248, deviceScaleFactor: 2, mobile: false });
@@ -42,8 +42,8 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, screenshot, 
     assert.equal(restored.listOutline, 'none', 'the container must not leave an automatic WebKit ring outside cards');
     assert.equal(restored.activeCount, 1);
     assert.equal(restored.outline, 'solid');
-    assert.equal(restored.width, '2px');
-    assert.ok(parseFloat(restored.offset) <= -2, 'keyboard focus stays inside the active card');
+    assert.equal(restored.width, '1px');
+    assert.ok(parseFloat(restored.offset) <= -1, 'keyboard focus stays inside the active card');
     shots.push(await screenshot(`timeline-focus-restored-${theme}.png`));
     await key('ArrowRight', 'ArrowRight', 39);
     await waitFor(`document.querySelector('.keyboard-active')?.dataset.dropClip !== ${JSON.stringify(restored.activeId)}`);

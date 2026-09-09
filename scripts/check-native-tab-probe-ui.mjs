@@ -22,7 +22,7 @@ await withCompiledUiTest(async ({page,evaluate,waitFor,fixture,browser,artifacts
   const settled = await evaluate(probe);
   assert.deepEqual(settled.tabs.filter(t=>t.active).map(t=>t.ordinal),[2]);
   assert.deepEqual(settled.tabs.filter(t=>t.current).map(t=>t.ordinal),[2]);
-  assert.deepEqual(settled.tabs[2].background,[255,255,255,0.18]);
+  assert.deepEqual(settled.tabs[2].background,[55,55,55,1]);
   assert.deepEqual(settled.tabs[0].background,[0,0,0,0]);
   assert.ok(settled.timeline_ms > before.timeline_ms);
   const allowed = new Set(['visible','focused','now_ms','timeline_ms','tab_count','tabs','ordinal','active','current','hovered','background','animation_count','animations','background_transition','state','pending','current_ms','start_ms']);

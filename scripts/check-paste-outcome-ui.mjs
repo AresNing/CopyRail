@@ -60,6 +60,7 @@ await withCompiledUiTest(async ({page,evaluate,waitFor,fixture,browser,artifacts
     assert.equal((await evaluate(`window.pasteOutcomeFixture.calls`))[2].command,'restore_clip');
     if(outcome==='permissionDenied') {
       await evaluate(`document.querySelector('.permission-help-button').click()`);
+      await page('Emulation.setDeviceMetricsOverride',{width:1440,height:608,deviceScaleFactor:2,mobile:false});
       await waitFor(`document.activeElement?.getAttribute('aria-label')==='直接粘贴权限'`);
       await waitFor(`document.querySelector('.permission-app-path')?.textContent.includes('CopyRail-0.1.0-local-beta.4/CopyRail.app')`);
       assert.equal(await evaluate(`document.querySelector('.permission-help')?.textContent.includes('先退出 CopyRail') && document.querySelector('.permission-help')?.textContent.includes('“−”移除')`),true,'Stale grants need remove-then-add instructions, not another duplicate Add');
@@ -70,6 +71,8 @@ await withCompiledUiTest(async ({page,evaluate,waitFor,fixture,browser,artifacts
       await evaluate(`document.querySelector('.permission-actions button').scrollIntoView({block:'nearest'})`);
       assert.equal(await evaluate(`(() => {const b=document.querySelector('.permission-actions button').getBoundingClientRect(),p=document.querySelector('.settings-popover').getBoundingClientRect();return b.top>=p.top && b.bottom<=p.bottom && scrollY===0;})()`),true,'Permission controls remain reachable after long-path guidance');
       await evaluate(`document.querySelector('.settings-button').click();document.querySelector('#history-results').focus()`);
+      await waitFor(`!window.previewFrameFixture.open`);
+      await page('Emulation.setDeviceMetricsOverride',{width:1440,height:248,deviceScaleFactor:2,mobile:false});
     }
     // Ordinary Copy does not ask the OS to paste, regardless of the paste outcome.
     await evaluate(`window.dragEventFixture.emit('pasters-edit-action','copy')`);

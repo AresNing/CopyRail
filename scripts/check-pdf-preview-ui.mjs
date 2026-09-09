@@ -30,9 +30,9 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, screenshot, 
   assert.equal(await evaluate(`window.previewFrameFixture.open`), true, 'opening requests a real expanded native frame');
   // A browser cannot resize its own native host: simulate only the viewport
   // acknowledgement, and assert the production command independently above.
-  await page('Emulation.setDeviceMetricsOverride', { width: 960, height: 760, deviceScaleFactor: 2, mobile: false });
-  assert.ok(await evaluate(`document.querySelector('.preview-content').getBoundingClientRect().height >= 650`));
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.toolbar')).visibility`), 'hidden');
+  await page('Emulation.setDeviceMetricsOverride', { width: 1440, height: 608, deviceScaleFactor: 2, mobile: false });
+  assert.ok(await evaluate(`document.querySelector('.preview-content').getBoundingClientRect().height >= 220`));
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.toolbar')).visibility`), 'visible');
   await screenshot('pdf-expanded-reader-2x.png');
   const original = await readFile(new URL('../tmp/pdfs/synthetic-portrait.pdf', import.meta.url));
   const src = await evaluate(`document.querySelector('.preview-pdf').getAttribute('src')`);

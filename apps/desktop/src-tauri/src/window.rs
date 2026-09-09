@@ -223,7 +223,7 @@ fn install_preview_escape(window: &WebviewWindow) -> Result<(), String> {
 
 pub fn apply_frame_style(window: &WebviewWindow) -> Result<(), String> {
     configure_spaces(window).map_err(|error| error.to_string())?;
-    window.set_shadow(true).map_err(|e| e.to_string())?;
+    window.set_shadow(false).map_err(|e| e.to_string())?;
     #[cfg(target_os = "macos")]
     {
         objc2::MainThreadMarker::new().ok_or("窗口圆角必须在主线程设置。")?;
@@ -235,7 +235,7 @@ pub fn apply_frame_style(window: &WebviewWindow) -> Result<(), String> {
         layer.setCornerRadius(16.0);
         layer.setMasksToBounds(true);
         if let Some(native) = view.window() {
-            native.setHasShadow(true);
+            native.setHasShadow(false);
             native.invalidateShadow();
         }
         if window
@@ -501,7 +501,11 @@ fn apply_native_frame(
         return Ok(());
     }
     let requested = if preview {
-        requested.unwrap_or(current_size)
+        state
+            .saved
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .unwrap_or(current_size)
     } else {
         state
             .dock
@@ -596,8 +600,8 @@ fn cocoa_frame_bounds(
     // ordinary integral NSScreen frames and integral preferred sizes.
     let (wanted_width, wanted_height) = if preview {
         (
-            960.0_f64.min((width - 48.0).max(1.0)),
-            760.0_f64.min((height - 48.0).max(1.0)),
+            requested.width.min((width - 24.0).max(1.0)),
+            (requested.height + 360.0).min((height - 24.0).max(1.0)),
         )
     } else {
         let side_gap = FLOATING_GAP_POINTS.min(((width - 1.0) / 2.0).max(0.0));
@@ -609,16 +613,8 @@ fn cocoa_frame_bounds(
     };
     let left = (x + (width - wanted_width) / 2.0).ceil();
     let right = (x + (width + wanted_width) / 2.0).floor();
-    let bottom = if preview {
-        (y + (height - wanted_height) / 2.0).ceil()
-    } else {
-        (y + FLOATING_GAP_POINTS.min((height - 1.0).max(0.0))).ceil()
-    };
-    let top = if preview {
-        (y + (height + wanted_height) / 2.0).floor()
-    } else {
-        (bottom + wanted_height).min(y + height).floor()
-    };
+    let bottom = (y + FLOATING_GAP_POINTS.min((height - 1.0).max(0.0))).ceil();
+    let top = (bottom + wanted_height).min(y + height).floor();
     (right > left && top > bottom).then_some([left, bottom, right - left, top - bottom])
 }
 
@@ -1070,7 +1066,7 @@ mod tests {
         );
         assert_eq!(
             cocoa_frame_bounds(visible, dock, 2.0, true),
-            Some([409.0, 162.0, 959.0, 760.0])
+            Some([169.0, 12.0, 1439.0, 608.0])
         );
     }
 
@@ -1101,7 +1097,7 @@ mod tests {
             );
             assert_eq!(
                 cocoa_frame_bounds(visible, LogicalSize::new(1440.0, 248.0), scale, true),
-                Some([-1440.0, -40.0, 960.0, 760.0])
+                Some([-1680.0, -168.0, 1440.0, 608.0])
             );
         }
     }
@@ -1111,7 +1107,7 @@ mod tests {
         let dock = LogicalSize::new(1440.0, 248.0);
         assert_eq!(
             cocoa_frame_bounds([0.0, 0.0, 640.0, 480.0], dock, 1.0, true),
-            Some([24.0, 24.0, 592.0, 432.0])
+            Some([12.0, 12.0, 616.0, 456.0])
         );
         assert_eq!(
             cocoa_frame_bounds([0.0, 0.0, 640.0, 480.0], dock, 1.0, false),
@@ -1156,13 +1152,13 @@ mod tests {
                                 let [left, bottom, w, h] = frame;
                                 assert!(frame.iter().all(|v| v.fract() == 0.0));
                                 assert_eq!(left - x, x + width - left - w);
-                                let preferred_width = if preview { 960.0 } else { 1440.0 };
+                                let preferred_width = 1440.0;
                                 assert!(
                                     (preferred_width - w) >= 0.0 && (preferred_width - w) <= 1.0
                                 );
                                 if preview {
-                                    assert_eq!(bottom - y, y + height - bottom - h);
-                                    assert!((759.0..=760.0).contains(&h));
+                                    assert_eq!(bottom - y, 12.0);
+                                    assert_eq!(h, 608.0);
                                 } else {
                                     assert_eq!(bottom - y, 12.0);
                                     assert_eq!(h, 248.0);

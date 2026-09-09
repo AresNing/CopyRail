@@ -89,7 +89,7 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, screenshot, 
     await waitFor(`window.previewFrameFixture.open === true`);
     // A headless page has no native frame. Match the acknowledged reader
     // viewport; actual positioning and restoration require macOS acceptance.
-    await page('Emulation.setDeviceMetricsOverride', { width: 960, height: 760, deviceScaleFactor: 1, mobile: false });
+    await page('Emulation.setDeviceMetricsOverride', { width: 1440, height: 608, deviceScaleFactor: 1, mobile: false });
     assert.equal(await evaluate(`document.querySelector('.preview-text').textContent.includes('这不是用户剪贴板')`), true);
     screenshots.push(await screenshot(`visual-preview-${theme}.png`));
     await media(theme, true);
@@ -120,6 +120,7 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, screenshot, 
     await waitFor(`!document.querySelector('.content-editor')`);
     await evaluate(`document.querySelector('.settings-button').click()`);
     await waitFor(`document.querySelector('.settings-popover .save-settings')`);
+    await page('Emulation.setDeviceMetricsOverride', { width: 1440, height: 608, deviceScaleFactor: 1, mobile: false });
     await checkContrast(theme, ['.settings-popover header', '.permission-actions button', '.backup-actions button', '.save-settings']);
     await evaluate(`document.querySelector('.save-settings').scrollIntoView({ block: 'nearest' })`);
     assert.equal(await evaluate(`document.querySelector('.save-settings').getBoundingClientRect().bottom <= innerHeight && document.querySelector('.settings-popover').scrollWidth <= document.querySelector('.settings-popover').clientWidth + 1`), true);

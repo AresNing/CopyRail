@@ -45,9 +45,12 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, screenshot, 
     assert.ok(measured.y >= measured.toolbarBottom, 'warning does not cover search or board controls');
     await screenshot(`capture-status-${compact ? 'compact' : 'expanded'}-${theme}.png`);
     await evaluate(`Object.assign(window.captureStatusFixture.status, { paused: true, lastError: null, pendingItems: 0 })`);
-    await waitFor(`!document.querySelector('.capture-error') && document.querySelector('.status-button.paused')`);
+    await waitFor(`!document.querySelector('.capture-error') && document.querySelector('.capture-status.paused')`);
+    await evaluate(`window.captureStatusEntry=document.querySelector('.capture-status');window.captureStatusEntry.focus();window.pauseReads=window.captureStatusFixture.reads`);
+    await waitFor(`window.captureStatusFixture.reads>=window.pauseReads+3`);
+    assert.equal(await evaluate(`document.activeElement===window.captureStatusEntry && document.querySelector('.capture-status')===window.captureStatusEntry`),true,'polling must retain focus on the pause status entry');
     await evaluate(`Object.assign(window.captureStatusFixture.status, { paused: false, lastError: ${JSON.stringify(privacy)} })`);
-    await waitFor(`!document.querySelector('.status-button.paused') && document.querySelector('.capture-error')?.textContent === ${JSON.stringify(privacy)}`);
+    await waitFor(`!document.querySelector('.capture-status.paused') && document.querySelector('.capture-error')?.textContent === ${JSON.stringify(privacy)}`);
     await evaluate(`window.captureStatusFixture.status.lastError = null`);
     await waitFor(`!document.querySelector('.capture-error')`);
     observations.push({ compact, theme, measured, pausePrivacyRecovery: 'passed' });

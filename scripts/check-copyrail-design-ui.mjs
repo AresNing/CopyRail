@@ -29,6 +29,10 @@ await withCompiledUiTest(async ({page,evaluate,waitFor,fixture,screenshot,artifa
       assert.equal(layout.separateRows,!compact);
       assert.equal(layout.sourceVisible,!compact);
       assert.deepEqual(await evaluate(`[...document.querySelectorAll('.card-kind')].map(e=>getComputedStyle(e).backgroundColor)`),['rgb(237, 194, 77)','rgb(35, 115, 195)','rgb(201, 54, 64)','rgb(121, 80, 167)','rgb(237, 194, 77)','rgb(237, 194, 77)','rgb(237, 194, 77)','rgb(121, 80, 167)']);
+      assert.deepEqual(await evaluate(`[...document.querySelectorAll('.paste-shell,.dock-surface,.clip-card,.pinboard.active')].map(e=>getComputedStyle(e).boxShadow).filter(v=>v!=='none')`),[],'flat surfaces have no shadows or tab underline');
+      const selected=await evaluate(`(()=>{const s=getComputedStyle(document.querySelector('.clip-card.selected'));return {background:s.backgroundColor,border:s.borderColor}})()`);
+      assert.equal(selected.background,theme==='dark'?'rgb(56, 56, 56)':'rgb(232, 232, 232)');
+      assert.equal(selected.border,theme==='dark'?'rgb(160, 160, 160)':'rgb(115, 115, 115)');
       if(width===1440 || width===900) await screenshot(`copyrail-design-${theme}-${compact?'compact':'normal'}-${width}.png`);
       checks.push({theme,compact,width,layout});
     }

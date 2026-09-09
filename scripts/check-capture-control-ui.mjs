@@ -22,7 +22,13 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, screenshot, 
     await page('Emulation.setDeviceMetricsOverride', { width: 1440, height: compact ? 148 : 248, deviceScaleFactor: 2, mobile: false });
     await page('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] });
     await page('Page.navigate', { url: `${fixture}/?fixture=pinboards${compact ? '&compact=1' : ''}` });
-    await waitFor(`document.querySelectorAll('.clip-card').length === 5 && document.querySelector('.status-button')`);
+    await waitFor(`document.querySelectorAll('.clip-card').length === 5`);
+    assert.equal(await evaluate(`!!document.querySelector('.toolbar .capture-status, .toolbar .status-button, .shortcut-hint, .rail-guide')`), false, 'ordinary main UI has no capture control or keyboard hints');
+    await evaluate(`document.querySelector('.settings-button').click()`);
+    await page('Emulation.setDeviceMetricsOverride', {width:1440,height:compact ? 508 : 608,deviceScaleFactor:2,mobile:false});
+    await waitFor(`document.querySelector('.workspace-ready')`);
+    await evaluate(`document.querySelectorAll('.settings-nav button')[2].click()`);
+    await waitFor(`document.querySelector('.capture-settings .status-button')`);
     await evaluate(`(() => {
       const invoke = window.__TAURI__.core.invoke;
       window.captureControlFixture = { state: { isolated: false, paused: false, pausedUntilMs: null, lastError: null, controlPending: null, revision: 10 }, pauses: 0, resumes: 0, restores: 0, reads: 0, delayedRead: false, staleStarted: false, staleReturned: false, failPause: false };
@@ -67,12 +73,14 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, screenshot, 
     await evaluate(`Object.assign(window.captureControlFixture.state, { paused: true, controlPending: null, revision: 12 })`);
     await waitFor(`document.querySelector('.status-button.paused')?.textContent.includes('点击恢复')`);
     assert.equal(await evaluate(`document.activeElement === window.captureControlButton && window.captureControlButton === document.querySelector('.status-button')`), true);
+    assert.equal(await evaluate(`document.querySelector('.capture-status')?.textContent`), '采集已暂停');
     await enter();
     await waitFor(`document.querySelector('.status-button.pending')?.textContent.includes('正在恢复')`);
     await enter();
     assert.equal(await evaluate(`window.captureControlFixture.resumes`), 1);
     await evaluate(`Object.assign(window.captureControlFixture.state, { paused: false, controlPending: null, revision: 14 })`);
     await waitFor(`document.querySelector('.status-button[aria-busy="false"]')?.textContent.includes('暂停 15 分钟')`);
+    assert.equal(await evaluate(`!!document.querySelector('.capture-status')`), false, 'confirmed resume removes main status');
     await evaluate(`Object.assign(window.captureControlFixture.state, { controlPending: 'preferences', revision: 15 })`);
     await waitFor(`document.querySelector('.status-button.pending')?.textContent.includes('正在应用设置')`);
     await evaluate(`Object.assign(window.captureControlFixture.state, { controlPending: null, revision: 16 }); window.captureControlFixture.failPause = true`);

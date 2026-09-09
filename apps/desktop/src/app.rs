@@ -607,8 +607,27 @@ pub fn App() -> impl IntoView {
             .and_then(|value| value.control_pending)
             .or_else(|| capture_request_busy.get().map(str::to_owned))
     };
+    let capture_status_visible = Memo::new(move |_| {
+        status.get().is_some_and(|value| value.paused) || pending_capture_control().is_some()
+    });
     let (error, set_error) = signal(None::<String>);
     let (notice, set_notice) = signal(None::<String>);
+    let notice_epoch = RwSignal::new(0_u64);
+    Effect::new(move |_| {
+        let message = notice.get();
+        let epoch = notice_epoch.get_untracked().wrapping_add(1);
+        notice_epoch.set(epoch);
+        if message.is_some() {
+            set_timeout(
+                move || {
+                    if notice_epoch.try_get_untracked() == Some(epoch) {
+                        let _ = set_notice.try_set(None);
+                    }
+                },
+                std::time::Duration::from_secs(4),
+            );
+        }
+    });
     let drop_target = RwSignal::new(None::<DropTarget>);
     let native_dragging = RwSignal::new(false);
     let native_feedback_active = RwSignal::new(false);
@@ -658,6 +677,7 @@ pub fn App() -> impl IntoView {
     let tab_pointer = RwSignal::new(None::<(PinboardId, i32, i32)>);
     let tab_click_suppressed = RwSignal::new(false);
     let (settings_open, set_settings_open) = signal(false);
+    let settings_tab = RwSignal::new("general");
     let (pinboard_creator_open, set_pinboard_creator_open) = signal(false);
     let (pinboard_editor_open, set_pinboard_editor_open) = signal(false);
     let (pin_menu_open, set_pin_menu_open) = signal(false);
@@ -689,22 +709,59 @@ pub fn App() -> impl IntoView {
             .get()
             .is_some_and(|id| clips.with(|items| items.iter().any(|item| item.id == id)))
     });
+    let expanded_visible = Memo::new(move |_| preview_visible.get() || settings_open.get());
+    let viewport_height = RwSignal::new(
+        window()
+            .inner_height()
+            .ok()
+            .and_then(|v| v.as_f64())
+            .unwrap_or(248.0),
+    );
+    let dock_height = RwSignal::new(viewport_height.get_untracked());
     let preview_frame_pending = RwSignal::new(false);
     // A frontend reload may occur while the native window is still expanded.
     let preview_frame_applied = RwSignal::new(None::<bool>);
+    // Keep the rail's painted surface identical while AppKit and WebKit catch
+    // up with one another. Only ordinary user resizes change its stored height.
+    let resize_listener = window_event_listener(ev::resize, move |_| {
+        if let Ok(height) = window().inner_height()
+            && let Some(height) = height.as_f64()
+        {
+            viewport_height.set(height);
+            if !expanded_visible.get_untracked()
+                && !preview_frame_pending.get_untracked()
+                && preview_frame_applied.get_untracked() != Some(true)
+            {
+                dock_height.set(height);
+            }
+        }
+    });
+    on_cleanup(move || resize_listener.remove());
+    let workspace_ready = Memo::new(move |_| {
+        expanded_visible.get()
+            && preview_frame_applied.get() == Some(true)
+            && viewport_height.get() > dock_height.get() + 100.0
+    });
     Effect::new(move |_| {
-        let desired = preview_visible.get();
+        let desired = expanded_visible.get();
         if preview_frame_pending.get_untracked()
             || Some(desired) == preview_frame_applied.get_untracked()
         {
             return;
+        }
+        if desired
+            && preview_frame_applied.get_untracked() != Some(true)
+            && let Ok(height) = window().inner_height()
+            && let Some(height) = height.as_f64()
+        {
+            dock_height.set(height);
         }
         preview_frame_pending.set(true);
         spawn_local(async move {
             // Serialize/coalesce rapid open/close requests. An older expansion
             // must never overtake closing the preview after a slow IPC response.
             loop {
-                let desired = preview_visible.get_untracked();
+                let desired = expanded_visible.get_untracked();
                 match invoke::<()>("set_preview_window", &PreviewWindowArgs { open: desired }).await
                 {
                     Ok(()) => preview_frame_applied.set(Some(desired)),
@@ -713,7 +770,7 @@ pub fn App() -> impl IntoView {
                         break;
                     }
                 }
-                if preview_visible.get_untracked() == desired {
+                if expanded_visible.get_untracked() == desired {
                     break;
                 }
             }
@@ -729,6 +786,25 @@ pub fn App() -> impl IntoView {
     let shortcut_epoch = RwSignal::new(0_u64);
     let shortcut_section = NodeRef::<html::Section>::new();
     let permission_section = NodeRef::<html::Section>::new();
+    let settings_focus_target = RwSignal::new(None::<&'static str>);
+    Effect::new(move |_| {
+        if !settings_open.get() {
+            settings_focus_target.set(None);
+            return;
+        }
+        if workspace_ready.get() {
+            let section = match settings_focus_target.get() {
+                Some("shortcuts") => shortcut_section.get(),
+                Some("permission") => permission_section.get(),
+                _ => None,
+            };
+            if let Some(section) = section {
+                section.scroll_into_view_with_bool(true);
+                let _ = section.focus();
+                settings_focus_target.set(None);
+            }
+        }
+    });
     let refresh_shortcut = Callback::new(move |()| {
         if shortcut_retrying.get_untracked() {
             return;
@@ -1159,6 +1235,41 @@ pub fn App() -> impl IntoView {
         }
     });
 
+    // aria-activedescendant does not scroll the active grid cell for us.
+    // Scroll only the timeline, preserving page position and keyboard focus.
+    let active_card_id =
+        Memo::new(move |_| clips.with(|items| items.get(selected.get()).map(|clip| clip.id)));
+    Effect::new(move |_| {
+        let id = active_card_id.get();
+        set_timeout(
+            move || {
+                if let Some(id) = id
+                    && let Some(card) = document().get_element_by_id(&format!("clip-card-{id}"))
+                    && let Ok(Some(list)) = document().query_selector(".card-track")
+                {
+                    let bounds = card.get_bounding_client_rect();
+                    let viewport = list.get_bounding_client_rect();
+                    // Match the track's center snap points. A nearest-edge
+                    // offset can snap back to the preceding card in WebKit,
+                    // leaving the newly selected card partially clipped.
+                    let delta = if bounds.left() < viewport.left() + 12.0
+                        || bounds.right() > viewport.right() - 12.0
+                    {
+                        bounds.left() + bounds.width() / 2.0
+                            - viewport.left()
+                            - viewport.width() / 2.0
+                    } else {
+                        0.0
+                    };
+                    if delta != 0.0 {
+                        list.set_scroll_left(list.scroll_left() + delta.round() as i32);
+                    }
+                }
+            },
+            std::time::Duration::ZERO,
+        );
+    });
+
     let focus_results = Callback::new(move |()| {
         if let Some(results) = results_view.get() {
             let _ = results.focus();
@@ -1214,7 +1325,7 @@ pub fn App() -> impl IntoView {
     let close_preview = Callback::new(move |()| {
         set_preview_open.set(None);
         spawn_local(async move {
-            // Wait for the modal's hidden timeline to become visible again.
+            // Restore timeline focus after removing the reader.
             TimeoutFuture::new(0).await;
             if !preview_visible.get_untracked() {
                 focus_results.run(());
@@ -1276,7 +1387,14 @@ pub fn App() -> impl IntoView {
     });
     drag_drop::subscribe(
         "pasters-close-preview",
-        Callback::new(move |_| close_preview.run(())),
+        Callback::new(move |_| {
+            if settings_open.get_untracked() {
+                set_settings_open.set(false);
+                focus_results.run(());
+            } else {
+                close_preview.run(());
+            }
+        }),
         Callback::new(move |message| set_error.set(Some(message))),
     );
     drag_drop::subscribe(
@@ -1288,7 +1406,11 @@ pub fn App() -> impl IntoView {
             let Ok(event) = serde_wasm_bindgen::from_value::<NativeEditEvent>(value) else {
                 return;
             };
-            if preview_visible.get_untracked() {
+            if preview_visible.get_untracked()
+                && document().active_element().is_some_and(|element| {
+                    element.closest(".preview-overlay").ok().flatten().is_some()
+                })
+            {
                 use crate::preview_edit::{Route, route};
                 let doc = document();
                 let text = doc
@@ -1518,6 +1640,21 @@ pub fn App() -> impl IntoView {
             return;
         }
         if let Some(clip_id) = preview_open.get_untracked() {
+            if !is_text_entry_target(&event)
+                && let Some(next) = crate::card_navigation::navigation_index(
+                    &event.key(),
+                    selected.get_untracked(),
+                    count,
+                    event.meta_key() || event.ctrl_key() || event.alt_key(),
+                )
+            {
+                event.prevent_default();
+                set_selected.set(next);
+                set_selection_anchor.set(next);
+                set_selected_ids.set(HashSet::from([current_clips[next].id]));
+                set_preview_open.set(Some(current_clips[next].id));
+                return;
+            }
             if matches!(event.key().as_str(), "Escape" | " ") && !is_text_entry_target(&event) {
                 event.prevent_default();
                 close_preview.run(());
@@ -3311,6 +3448,9 @@ pub fn App() -> impl IntoView {
     });
 
     let change_settings = Callback::new(move |opening: bool| {
+        if opening {
+            set_preview_open.set(None);
+        }
         if settings_open.get_untracked() != opening {
             set_settings_open.set(opening);
         }
@@ -3352,12 +3492,31 @@ pub fn App() -> impl IntoView {
         <main
             class="paste-shell"
             class:reading-preview=move || preview_visible.get()
+            class:expanded-workspace=move || expanded_visible.get()
+            class:workspace-ready=move || workspace_ready.get()
+            class:dock-short=move || dock_height.get().min(viewport_height.get()) <= 190.0
+            style=move || format!("--saved-dock-height:{}px;", dock_height.get())
             class:compact=move || applied_compact.get()
             class:drag-active=move || native_dragging.get()
             class:native-feedback=move || native_feedback_active.get()
             tabindex="0"
             on:keydown=on_keydown
+            on:pointerdown:capture=move |event| {
+                let target = event.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok());
+                if let Some(target) = target {
+                    if target.closest(".pin-menu, .organize-button").ok().flatten().is_none() {
+                        set_pin_menu_open.set(false);
+                    }
+                    if target.closest(".filter-popover, .filter-toggle").ok().flatten().is_none() {
+                        set_filter_menu_open.set(false);
+                    }
+                    if target.closest(".settings-popover, .settings-button, .shortcut-warning, .permission-help-button").ok().flatten().is_none() {
+                        set_settings_open.set(false);
+                    }
+                }
+            }
         >
+            <div class="dock-surface">
             <div class="drag-region" data-tauri-drag-region></div>
             <header class="toolbar">
                 <div class="rail-brand" aria-label="CopyRail">
@@ -3498,34 +3657,27 @@ pub fn App() -> impl IntoView {
                         class="stack-button"
                         class:active=move || !stack.get().is_empty()
                         type="button"
-                        title="顺序粘贴：按顺序粘贴；点击清空"
+                        title="清空待粘贴列表（不会删除历史）"
                         on:click=move |_| set_stack.set(Vec::new())
                     >
-                        <span>"队列"</span>
+                        <span>"顺序粘贴"</span>
                         <strong>{move || stack.get().len()}</strong>
                     </button>
                     {move || if capture_isolated.get() {
-                        view! {
-                            <span class="native-test-badge" role="status" title="合成历史；不访问系统剪贴板或 iCloud">"隔离验证"</span>
-                        }.into_any()
+                        view! { <span class="native-test-badge" role="status" title="合成历史；不访问系统剪贴板或 iCloud">"隔离验证"</span> }.into_any()
                     } else {
-                        view! {
-                            <button class="status-button" type="button"
+                        capture_status_visible.get().then(|| view! {
+                            <button class="capture-status" type="button" role="status"
                                 class:paused=move || pending_capture_control().is_none() && status.get().is_some_and(|value| value.paused)
-                                class:pending=move || pending_capture_control().is_some()
-                                aria-disabled=move || if pending_capture_control().is_some() { "true" } else { "false" }
-                                aria-busy=move || if pending_capture_control().is_some() { "true" } else { "false" }
-                                title=move || if pending_capture_control().is_some() { "尚未确认生效；等待当前读取或写入结束，请暂勿复制敏感内容。" } else { "控制剪贴板采集" }
-                                on:click=move |event| if status.get_untracked().is_some_and(|value| value.paused) { resume(event) } else { pause(event) }
-                            >
-                                {move || match pending_capture_control().as_deref() {
-                                    Some("pause") => "正在暂停…".into(),
-                                    Some("resume") => "正在恢复…".into(),
-                                    Some(_) => "正在应用设置…".into(),
-                                    None => status.get().filter(|value| value.paused).as_ref().map_or_else(|| "暂停 15 分钟".into(), pause_label),
-                                }}
-                            </button>
-                        }.into_any()
+                                title="在设置中管理采集"
+                                on:click=move |_| { change_settings.run(true); settings_tab.set("history"); }
+                            >{move || match pending_capture_control().as_deref() {
+                                Some("pause") => "正在暂停…",
+                                Some("resume") => "正在恢复…",
+                                Some(_) => "正在应用设置…",
+                                None => "采集已暂停",
+                            }}</button>
+                        }).into_any()
                     }}
                     <button
                         class="settings-button"
@@ -3535,23 +3687,7 @@ pub fn App() -> impl IntoView {
                         title="采集与隐私设置"
                         on:click=move |_| change_settings.run(!settings_open.get_untracked())
                     >"⚙"</button>
-                    <button
-                        class="shortcut-hint"
-                        class:unavailable=move || shortcut_request_error.get().is_some() || shortcut_status.get().is_some_and(|value| !value.isolated && !value.registered)
-                        type="button"
-                        aria-label="全局快捷键状态与恢复"
-                        title="查看 ⇧⌘V 状态；菜单栏「显示 CopyRail」始终可用于打开窗口"
-                        on:click=move |_| {
-                            change_settings.run(true);
-                            spawn_local(async move {
-                                TimeoutFuture::new(0).await;
-                                if let Some(section) = shortcut_section.get() {
-                                    section.scroll_into_view_with_bool(true);
-                                    let _ = section.focus();
-                                }
-                            });
-                        }
-                    >{move || if shortcut_request_error.get().is_some() { "快捷键状态未知" } else if shortcut_status.get().is_some_and(|value| !value.isolated && !value.registered) { "快捷键未启用" } else { "⇧⌘V" }}</button>
+
                 </div>
                 <nav class="pinboards" aria-label="Pinboards">
                     <button
@@ -3676,7 +3812,6 @@ pub fn App() -> impl IntoView {
                         >"•••"</button>
                     })}
                 </nav>
-                <div class="rail-guide" aria-hidden="true"><span><kbd>"空格"</kbd>" 预览"</span><span><kbd>"↵"</kbd>" 粘贴"</span></div>
             </header>
 
             {move || filter_menu_open.get().then(|| view! {
@@ -3789,270 +3924,14 @@ pub fn App() -> impl IntoView {
                 </aside>
             })}
 
-            {move || settings_open.get().then(|| view! {
-                <aside class="settings-popover" aria-label="采集与隐私设置">
-                    <header>
-                        <strong>"采集与隐私"</strong>
-                        <button type="button" on:click=move |_| set_settings_open.set(false)>"×"</button>
-                    </header>
-                    <section class="permission-settings shortcut-settings" aria-label="全局快捷键" tabindex="-1" node_ref=shortcut_section>
-                        <div class="permission-summary">
-                            <div>
-                                <strong>"全局快捷键 ⇧⌘V"</strong>
-                                <span>{move || match shortcut_status.get() {
-                                    Some(current) if current.isolated => "隔离验证不会注册系统快捷键。",
-                                    Some(current) if current.registered => "快捷键已注册；也可通过菜单栏「显示 CopyRail」打开。",
-                                    Some(_) => "快捷键暂不可用，可能已被其他软件占用。可从菜单栏「显示 CopyRail」打开；释放此组合键后点击「重新启用」。",
-                                    None => "正在读取快捷键状态；菜单栏入口仍可使用。",
-                                }}</span>
-                            </div>
-                            <span class="permission-state shortcut-state" class:granted=move || shortcut_status.get().is_some_and(|value| value.registered) role="status">
-                                {move || if shortcut_retrying.get() { "处理中" } else { match shortcut_status.get() {
-                                    Some(current) if current.isolated => "隔离未注册",
-                                    Some(current) if current.registered => "已注册",
-                                    Some(_) => "未启用",
-                                    None => "未知",
-                                }}}
-                            </span>
-                        </div>
-                        {move || shortcut_request_error.get().map(|message| view! { <p class="shortcut-request-error" role="status">{message}</p> })}
-                        {move || shortcut_status.get().and_then(|value| value.error).map(|message| view! {
-                            <details class="shortcut-details"><summary>"技术详情"</summary><code>{message}</code></details>
-                        })}
-                        <div class="permission-actions">
-                            <button class="shortcut-refresh" type="button" disabled=move || shortcut_retrying.get() on:click=move |_| refresh_shortcut.run(())>"重新检测"</button>
-                            <button class="shortcut-retry" type="button" disabled=move || shortcut_retrying.get() || shortcut_status.get().is_none_or(|value| value.isolated || value.registered) on:click=retry_shortcut>{move || if shortcut_retrying.get() { "正在启用…" } else { "重新启用" }}</button>
-                        </div>
-                    </section>
-                    <label>
-                        <span>"最多保留天数"</span>
-                        <input
-                            type="number"
-                            min="1"
-                            placeholder="永久"
-                            prop:value=move || retention_days.get()
-                            on:input=move |event| set_retention_days.set(event_target_value(&event))
-                        />
-                    </label>
-                    <label>
-                        <span>"最多保留未固定项目"</span>
-                        <input
-                            type="number"
-                            min="1"
-                            placeholder="不限"
-                            prop:value=move || retention_items.get()
-                            on:input=move |event| set_retention_items.set(event_target_value(&event))
-                        />
-                    </label>
-                    <label class="excluded-apps">
-                        <span>"忽略这些应用（每行一个 Bundle ID）"</span>
-                        <textarea
-                            placeholder="com.example.password-manager"
-                            prop:value=move || excluded_apps.get()
-                            on:input=move |event| set_excluded_apps.set(event_target_value(&event))
-                        ></textarea>
-                    </label>
-                    <label class="toggle-setting">
-                        <span>"登录时自动启动"</span>
-                        <input
-                            type="checkbox"
-                            prop:checked=move || desktop_preferences.get().launch_at_login
-                            on:change=move |event| set_desktop_preferences.update(|value| {
-                                value.launch_at_login = event_target_checked(&event);
-                            })
-                        />
-                    </label>
-                    <label class="toggle-setting">
-                        <span>"屏幕共享时隐藏内容"</span>
-                        <input
-                            type="checkbox"
-                            prop:checked=move || desktop_preferences.get().screen_share_protection
-                            on:change=move |event| set_desktop_preferences.update(|value| {
-                                value.screen_share_protection = event_target_checked(&event);
-                            })
-                        />
-                    </label>
-                    <label class="toggle-setting">
-                        <span>"Compact Mode"</span>
-                        <input
-                            type="checkbox"
-                            prop:checked=move || desktop_preferences.get().compact_mode
-                            on:change=move |event| set_desktop_preferences.update(|value| {
-                                value.compact_mode = event_target_checked(&event);
-                            })
-                        />
-                    </label>
-                    <section class="permission-settings" aria-label="直接粘贴权限" tabindex="-1" node_ref=permission_section>
-                        <div class="permission-summary">
-                            <div>
-                                <strong>"直接粘贴"</strong>
-                                <span>"复制无需授权；向目标应用发送 ⌘V 需要 macOS 辅助功能权限。"</span>
-                            </div>
-                            <span
-                                class="permission-state"
-                                class:granted=move || permission_status
-                                    .get()
-                                    .is_some_and(|current| current.accessibility_trusted)
-                            >
-                                {move || match permission_status.get() {
-                                    Some(current) if current.accessibility_trusted => "已授权",
-                                    Some(_) => "待授权",
-                                    None => "检测中",
-                                }}
-                            </span>
-                        </div>
-                        {move || permission_status.get().and_then(|current| current.app_path).map(|path| view! {
-                            <p class="permission-app-path">"当前运行的应用："<code>{path}</code></p>
-                        })}
-                        <p class="permission-help">"系统开关已开启却仍显示待授权？内测更新后，旧授权可能仍绑定旧签名。先退出 CopyRail，在辅助功能列表选中旧 CopyRail，点“−”移除，再点“＋”添加上方路径的应用。重新打开并点“重新检测”。仅搬到 Applications 不会更新旧授权；授权后请回到目标输入框重新唤起，不会补发上次粘贴。"</p>
-                        <div class="permission-actions">
-                            {move || (!permission_status
-                                .get()
-                                .is_some_and(|current| current.accessibility_trusted))
-                                .then(|| view! {
-                                    <button type="button" on:click=request_accessibility>
-                                        "授权直接粘贴"
-                                    </button>
-                                })}
-                            <button type="button" on:click=refresh_accessibility>"重新检测"</button>
-                        </div>
-                    </section>
-                    <section class="sync-settings" aria-label="iCloud 同步状态">
-                        <div class="sync-heading">
-                            <div>
-                                <strong>"iCloud 同步"</strong>
-                                <span>{move || match sync_status.get() {
-                                    Some(current) if current.enabled && current.blocked_reason.is_some() => current.blocked_reason.unwrap_or_default(),
-                                    Some(current) if current.pending_shared_downloads > 0 => {
-                                        format!("{} 项共享变更等待本地整合 · 完整共享同步仍在建设中", current.pending_shared_downloads)
-                                    }
-                                    Some(current) if current.pending_conflicts > 0 => {
-                                        format!("{} 个并发编辑待处理 · {} 项待发送", current.pending_conflicts, current.pending_changes)
-                                    }
-                                    Some(current) if current.pending_dependencies > 0 => {
-                                        format!("{} 项固定关系等待内容到齐 · {} 项待发送", current.pending_dependencies, current.pending_changes)
-                                    }
-                                    Some(current) if current.syncing => {
-                                        format!("正在安全同步 · {} 项待发送", current.pending_changes)
-                                    }
-                                    Some(current) if current.cloud_transport_configured && current.enabled => {
-                                        current.last_success_at_ms.map_or_else(
-                                            || format!("CloudKit 已配置 · 待发送 {} 项", current.pending_changes),
-                                            |last_success| format!("上次同步 {} · 待发送 {} 项", relative_timestamp_ms(last_success), current.pending_changes),
-                                        )
-                                    }
-                                    Some(current) if current.enabled => current.blocked_reason.unwrap_or_else(|| {
-                                        format!("同步已选择启用 · {} 项待发送", current.pending_changes)
-                                    }),
-                                    Some(current) if current.local_outbox_ready => {
-                                        format!("已关闭 · 本地队列保留 {} 项，不连接 CloudKit", current.pending_changes)
-                                    }
-                                    Some(_) => "本地同步队列不可用".into(),
-                                    None => "正在检查本地同步状态…".into(),
-                                }}</span>
-                            </div>
-                            <input
-                                aria-label="启用 iCloud 同步"
-                                type="checkbox"
-                                prop:checked=move || sync_status.get().is_some_and(|value| value.enabled)
-                                on:change=toggle_cloud_sync
-                            />
-                        </div>
-                        {move || sync_status.get().filter(|s| s.pending_shared_conflicts > 0).map(|s| view! {
-                            <p role="status">{format!("{} 个共享并发编辑待选择，双方内容均已保留。", s.pending_shared_conflicts)}</p>
-                        })}
-                    </section>
-                    <SyncConflictList conflicts=sync_conflicts resolving=resolving_conflicts on_resolve=resolve_sync_conflict />
-                    <SharedConflictList conflicts=shared_conflicts resolving=resolving_shared_conflicts on_resolve=resolve_shared_conflict />
-                    <section class="mcp-settings" aria-label="MCP 本地访问">
-                        <div class="mcp-heading">
-                            <div>
-                                <strong>"MCP 本地访问"</strong>
-                                <span>"让明确授权的 AI 客户端通过本机 stdio 搜索、读取和整理历史。默认关闭，不开放网络端口。"</span>
-                            </div>
-                            <input
-                                aria-label="启用 MCP 本地访问"
-                                type="checkbox"
-                                prop:checked=move || mcp_status.get().is_some_and(|value| value.enabled)
-                                on:change=toggle_mcp
-                            />
-                        </div>
-                        <div class="mcp-create-row">
-                            <input
-                                type="text"
-                                maxlength="80"
-                                placeholder="客户端名称，例如 Codex"
-                                prop:value=move || mcp_client_name.get()
-                                on:input=move |event| set_mcp_client_name.set(event_target_value(&event))
-                            />
-                            <button type="button" on:click=create_mcp_connection>"创建并启用"</button>
-                        </div>
-                        <div class="mcp-clients">
-                            {move || match mcp_status.get() {
-                                Some(current) if current.clients.is_empty() => view! {
-                                    <span class="mcp-empty">"尚未授权客户端"</span>
-                                }.into_any(),
-                                Some(current) => current.clients.into_iter().map(|client| {
-                                    let client_id = client.id.clone();
-                                    let last_used = client.last_used_at
-                                        .as_deref()
-                                        .unwrap_or("尚未使用")
-                                        .to_owned();
-                                    view! {
-                                        <div class="mcp-client-row" title=format!("创建于 {} · 最后使用 {}", client.created_at, last_used)>
-                                            <span>{client.display_name}</span>
-                                            <button
-                                                type="button"
-                                                on:click=move |_| revoke_mcp_connection.run(client_id.clone())
-                                            >"撤销"</button>
-                                        </div>
-                                    }
-                                }).collect_view().into_any(),
-                                None => view! {
-                                    <span class="mcp-empty">"正在检查授权状态…"</span>
-                                }.into_any(),
-                            }}
-                        </div>
-                        {move || mcp_connection_config.get().map(|configuration| view! {
-                            <div class="mcp-config-once">
-                                <strong>"仅显示一次的连接配置"</strong>
-                                <span>"其中包含访问凭据。保存到目标客户端后请关闭此面板；不要粘贴到聊天或提交到仓库。"</span>
-                                <textarea readonly prop:value=configuration></textarea>
-                            </div>
-                        })}
-                    </section>
-                    <section class="backup-settings" aria-label="本地备份">
-                        <div>
-                            <strong>"本地备份"</strong>
-                            <span>"包含历史、Pinboards 与本地设置；不上传到云端。"</span>
-                        </div>
-                        <div class="backup-actions">
-                            <button type="button" on:click=export_backup>"导出备份"</button>
-                            <button class="restore-backup" type="button" on:click=restore_backup>
-                                "恢复备份"
-                            </button>
-                        </div>
-                    </section>
-                    <p>"固定到 Pinboard 的内容不会被保留策略清理。机密和瞬态剪贴板类型始终默认跳过。"</p>
-                    <button class="save-settings" type="button" on:click=save_settings>"保存设置"</button>
-                </aside>
-            })}
-
             {move || pinboard_creator_open.get().then(|| view! {
                 <aside class="pinboard-creator" aria-label="新建 Pinboard">
-                    <input
-                        type="color"
-                        aria-label="Pinboard 颜色"
-                        prop:value=move || new_pinboard_color.get()
-                        on:input=move |event| set_new_pinboard_color.set(event_target_value(&event))
-                    />
-                    <input
-                        type="text"
-                        maxlength="80"
-                        placeholder="Pinboard 名称"
+                    <label class="pinboard-name-field"><span>"名称"</span><input type="text" maxlength="80" placeholder="分类名称"
                         prop:value=move || new_pinboard_name.get()
-                        on:input=move |event| set_new_pinboard_name.set(event_target_value(&event))
-                    />
+                        on:input=move |event| set_new_pinboard_name.set(event_target_value(&event)) /></label>
+                    <label class="pinboard-color-field"><span>"颜色"</span><input type="color" aria-label="Pinboard 颜色"
+                        prop:value=move || new_pinboard_color.get()
+                        on:input=move |event| set_new_pinboard_color.set(event_target_value(&event)) /></label>
                     <button type="button" on:click=create_pinboard>"创建"</button>
                 </aside>
             })}
@@ -4060,29 +3939,18 @@ pub fn App() -> impl IntoView {
             {move || pinboard_editor_open.get().then(|| view! {
                 <aside class="pinboard-editor" aria-label="编辑 Pinboard">
                     <header>
-                        <strong>"编辑 Pinboard"</strong>
+                        <strong>"编辑分类"</strong>
                         <button type="button" on:click=move |_| set_pinboard_editor_open.set(false)>
                             "×"
                         </button>
                     </header>
                     <div class="pinboard-editor-fields">
-                        <input
-                            type="color"
-                            aria-label="Pinboard 颜色"
-                            prop:value=move || edit_pinboard_color.get()
-                            on:input=move |event| {
-                                set_edit_pinboard_color.set(event_target_value(&event));
-                            }
-                        />
-                        <input
-                            type="text"
-                            maxlength="80"
-                            placeholder="Pinboard 名称"
+                        <label class="pinboard-name-field"><span>"名称"</span><input type="text" maxlength="80" placeholder="分类名称"
                             prop:value=move || edit_pinboard_name.get()
-                            on:input=move |event| {
-                                set_edit_pinboard_name.set(event_target_value(&event));
-                            }
-                        />
+                            on:input=move |event| set_edit_pinboard_name.set(event_target_value(&event)) /></label>
+                        <label class="pinboard-color-field"><span>"颜色"</span><input type="color" aria-label="Pinboard 颜色"
+                            prop:value=move || edit_pinboard_color.get()
+                            on:input=move |event| set_edit_pinboard_color.set(event_target_value(&event)) /></label>
                     </div>
                     <div class="pinboard-editor-actions">
                         <div>
@@ -4285,7 +4153,7 @@ pub fn App() -> impl IntoView {
                 role=move || if clips.with(Vec::is_empty) { "region" } else { "grid" }
                 aria-multiselectable=move || (!clips.with(Vec::is_empty)).then_some("true")
                 aria-activedescendant=move || {
-                    if !results_have_focus.get() || results_pending.get() || preview_visible.get() { return None; }
+                    if !results_have_focus.get() || results_pending.get() { return None; }
                     clips.with(|items| items.get(selected.get()).map(|item| format!("clip-card-{}", item.id)))
                 }
                 aria-describedby="history-keyboard-help"
@@ -4363,6 +4231,7 @@ pub fn App() -> impl IntoView {
                                                     || history_offset.get() > 0
                                             })
                                             on_select=Callback::new(move |(meta, shift)| {
+                                                if preview_open.get_untracked().is_some() { set_preview_open.set(Some(clip_id)); }
                                                 focus_results.run(());
                                                 set_selected.set(index);
                                                 if shift {
@@ -4409,13 +4278,8 @@ pub fn App() -> impl IntoView {
                         {permission_required.then(|| view! {
                             <button class="permission-help-button" type="button" on:click=move |_| {
                                 change_settings.run(true);
-                                spawn_local(async move {
-                                    TimeoutFuture::new(0).await;
-                                    if let Some(section) = permission_section.get() {
-                                        section.scroll_into_view_with_bool(true);
-                                        let _ = section.focus();
-                                    }
-                                });
+                                settings_tab.set("general");
+                                settings_focus_target.set(Some("permission"));
                             }>"设置自动粘贴"</button>
                         })}
                     </div>
@@ -4427,6 +4291,308 @@ pub fn App() -> impl IntoView {
             {move || status.get().and_then(|value| value.last_error).map(|message| view! {
                 <div class="error-banner capture-error" role="status">{message}</div>
             })}
+            </div>
+            {move || settings_open.get().then(|| view! {
+                <aside class="settings-popover" role="dialog" aria-label="CopyRail 设置">
+                    <header><strong>"设置"</strong><button type="button" aria-label="关闭设置" on:click=move |_| set_settings_open.set(false)>"×"</button></header>
+                    <div class="settings-layout">
+                    <nav class="settings-nav" aria-label="设置分类">
+                        <button type="button" class:active=move || settings_tab.get() == "general" aria-current=move || (settings_tab.get() == "general").then_some("page") on:click=move |_| settings_tab.set("general")>"通用"</button>
+                        <button type="button" class:active=move || settings_tab.get() == "shortcuts" aria-current=move || (settings_tab.get() == "shortcuts").then_some("page") on:click=move |_| { settings_tab.set("shortcuts"); settings_focus_target.set(Some("shortcuts")); }>"快捷键"</button>
+                        <button type="button" class:active=move || settings_tab.get() == "history" aria-current=move || (settings_tab.get() == "history").then_some("page") on:click=move |_| settings_tab.set("history")>"历史与隐私"</button>
+                        <button type="button" class:active=move || settings_tab.get() == "backup" aria-current=move || (settings_tab.get() == "backup").then_some("page") on:click=move |_| settings_tab.set("backup")>"备份"</button>
+                        <button type="button" class:active=move || settings_tab.get() == "advanced" aria-current=move || (settings_tab.get() == "advanced").then_some("page") on:click=move |_| settings_tab.set("advanced")>"高级"</button>
+                    </nav><div class="settings-content">
+                    <div class="settings-page" data-settings-page="general" hidden=move || settings_tab.get() != "general"><h2>"通用"</h2><p class="settings-description">"启动、显示与粘贴"</p>
+                    <label class="toggle-setting">
+                        <span>"登录时自动启动"</span>
+                        <input
+                            type="checkbox"
+                            prop:checked=move || desktop_preferences.get().launch_at_login
+                            on:change=move |event| set_desktop_preferences.update(|value| {
+                                value.launch_at_login = event_target_checked(&event);
+                            })
+                        />
+                    </label>
+                    <label class="toggle-setting">
+                        <span>"紧凑卡片布局"</span>
+                        <input
+                            type="checkbox"
+                            prop:checked=move || desktop_preferences.get().compact_mode
+                            on:change=move |event| set_desktop_preferences.update(|value| {
+                                value.compact_mode = event_target_checked(&event);
+                            })
+                        />
+                    </label>
+                    <section class="queue-help" aria-label="顺序粘贴说明">
+                        <strong>"顺序粘贴"</strong>
+                        <p>"点卡片上的「＋」按顺序加入待粘贴列表。列表有内容时，回车优先粘贴第一条；再次唤起后可继续下一条。"</p>
+                        <p>"主界面的数字表示剩余条数。点击「顺序粘贴」清空列表，不会删除历史；仅复制或粘贴请求失败时不会移出该条。"</p>
+                    </section>
+                    <section class="permission-settings" aria-label="直接粘贴权限" tabindex="-1" node_ref=permission_section>
+                        <div class="permission-summary">
+                            <div>
+                                <strong>"直接粘贴"</strong>
+                                <span>"复制无需授权；向目标应用发送 ⌘V 需要 macOS 辅助功能权限。"</span>
+                            </div>
+                            <span
+                                class="permission-state"
+                                class:granted=move || permission_status
+                                    .get()
+                                    .is_some_and(|current| current.accessibility_trusted)
+                            >
+                                {move || match permission_status.get() {
+                                    Some(current) if current.accessibility_trusted => "已授权",
+                                    Some(_) => "待授权",
+                                    None => "检测中",
+                                }}
+                            </span>
+                        </div>
+                        {move || permission_status.get().and_then(|current| current.app_path).map(|path| view! {
+                            <p class="permission-app-path">"当前运行的应用："<code>{path}</code></p>
+                        })}
+                        <details class="permission-troubleshooting"><summary>"授权故障排查"</summary><p class="permission-help">"系统开关已开启却仍显示待授权？内测更新后，旧授权可能仍绑定旧签名。先退出 CopyRail，在辅助功能列表选中旧 CopyRail，点“−”移除，再点“＋”添加上方路径的应用。重新打开并点“重新检测”。仅搬到 Applications 不会更新旧授权；授权后请回到目标输入框重新唤起，不会补发上次粘贴。"</p></details>
+                        <div class="permission-actions">
+                            {move || (!permission_status
+                                .get()
+                                .is_some_and(|current| current.accessibility_trusted))
+                                .then(|| view! {
+                                    <button type="button" on:click=request_accessibility>
+                                        "授权直接粘贴"
+                                    </button>
+                                })}
+                            <button type="button" on:click=refresh_accessibility>"重新检测"</button>
+                        </div>
+                    </section>
+                    </div>
+                    <div class="settings-page" data-settings-page="shortcuts" hidden=move || settings_tab.get() != "shortcuts"><h2>"快捷键"</h2><p class="settings-description">"快速打开与键盘操作"</p>
+                    <section class="permission-settings shortcut-settings" aria-label="全局快捷键" tabindex="-1" node_ref=shortcut_section>
+                        <div class="permission-summary">
+                            <div>
+                                <strong>"全局快捷键 ⇧⌘V"</strong>
+                                <span>{move || match shortcut_status.get() {
+                                    Some(current) if current.isolated => "隔离验证不会注册系统快捷键。",
+                                    Some(current) if current.registered => "快捷键已注册；也可通过菜单栏「显示 CopyRail」打开。",
+                                    Some(_) => "快捷键暂不可用，可能已被其他软件占用。可从菜单栏「显示 CopyRail」打开；释放此组合键后点击「重新启用」。",
+                                    None => "正在读取快捷键状态；菜单栏入口仍可使用。",
+                                }}</span>
+                            </div>
+                            <span class="permission-state shortcut-state" class:granted=move || shortcut_status.get().is_some_and(|value| value.registered) role="status">
+                                {move || if shortcut_retrying.get() { "处理中" } else { match shortcut_status.get() {
+                                    Some(current) if current.isolated => "隔离未注册",
+                                    Some(current) if current.registered => "已注册",
+                                    Some(_) => "未启用",
+                                    None => "未知",
+                                }}}
+                            </span>
+                        </div>
+                        {move || shortcut_request_error.get().map(|message| view! { <p class="shortcut-request-error" role="status">{message}</p> })}
+                        {move || shortcut_status.get().and_then(|value| value.error).map(|message| view! {
+                            <details class="shortcut-details"><summary>"技术详情"</summary><code>{message}</code></details>
+                        })}
+                        <div class="permission-actions">
+                            <button class="shortcut-refresh" type="button" disabled=move || shortcut_retrying.get() on:click=move |_| refresh_shortcut.run(())>"重新检测"</button>
+                            <button class="shortcut-retry" type="button" disabled=move || shortcut_retrying.get() || shortcut_status.get().is_none_or(|value| value.isolated || value.registered) on:click=retry_shortcut>{move || if shortcut_retrying.get() { "正在启用…" } else { "重新启用" }}</button>
+                        </div>
+                    </section>
+                    <dl class="keyboard-reference" aria-label="界面快捷键">
+                        <div><dt>"选择内容"</dt><dd><kbd>"← / →"</kbd></dd></div>
+                        <div><dt>"预览 / 关闭预览"</dt><dd><kbd>"Space"</kbd></dd></div>
+                        <div><dt>"粘贴"</dt><dd><kbd>"Return"</kbd></dd></div>
+                        <div><dt>"以纯文本粘贴"</dt><dd><kbd>"⇧ Return"</kbd></dd></div>
+                        <div><dt>"复制"</dt><dd><kbd>"⌘ C"</kbd></dd></div>
+                        <div><dt>"加入 / 移出顺序粘贴"</dt><dd><kbd>"⌘ Return"</kbd></dd></div>
+                        <div><dt>"关闭预览、设置或主界面"</dt><dd><kbd>"Esc"</kbd></dd></div>
+                    </dl>
+                    </div>
+                    <div class="settings-page" data-settings-page="history" hidden=move || settings_tab.get() != "history"><h2>"历史与隐私"</h2><p class="settings-description">"保留范围与忽略规则"</p>
+                    <section class="capture-settings" aria-label="剪贴板采集">
+                        <div><strong>"剪贴板采集"</strong><p>"暂停期间不保存新复制的内容，15 分钟后自动恢复。"</p></div>
+                        {move || if capture_isolated.get() {
+                            view! { <span>"隔离验证不采集系统剪贴板。"</span> }.into_any()
+                        } else { view! {
+                            <button class="status-button" type="button"
+                                class:paused=move || pending_capture_control().is_none() && status.get().is_some_and(|value| value.paused)
+                                class:pending=move || pending_capture_control().is_some()
+                                aria-disabled=move || if pending_capture_control().is_some() { "true" } else { "false" }
+                                aria-busy=move || if pending_capture_control().is_some() { "true" } else { "false" }
+                                title=move || if pending_capture_control().is_some() { "尚未确认生效；等待当前读取或写入结束，请暂勿复制敏感内容。" } else { "控制剪贴板采集" }
+                                on:click=move |event| if status.get_untracked().is_some_and(|value| value.paused) { resume(event) } else { pause(event) }
+                            >
+                                {move || match pending_capture_control().as_deref() {
+                                    Some("pause") => "正在暂停…".into(),
+                                    Some("resume") => "正在恢复…".into(),
+                                    Some(_) => "正在应用设置…".into(),
+                                    None => status.get().filter(|value| value.paused).as_ref().map_or_else(|| "暂停 15 分钟".into(), pause_label),
+                                }}
+                            </button>
+                        }.into_any() }}
+                    </section>
+                    <label>
+                        <span>"最多保留天数"</span>
+                        <input
+                            type="number"
+                            min="1"
+                            placeholder="永久"
+                            prop:value=move || retention_days.get()
+                            on:input=move |event| set_retention_days.set(event_target_value(&event))
+                        />
+                    </label>
+                    <label>
+                        <span>"最多保留未固定项目"</span>
+                        <input
+                            type="number"
+                            min="1"
+                            placeholder="不限"
+                            prop:value=move || retention_items.get()
+                            on:input=move |event| set_retention_items.set(event_target_value(&event))
+                        />
+                    </label>
+                    <label class="excluded-apps">
+                        <span>"忽略这些应用（每行一个 Bundle ID）"</span>
+                        <textarea
+                            placeholder="com.example.password-manager"
+                            prop:value=move || excluded_apps.get()
+                            on:input=move |event| set_excluded_apps.set(event_target_value(&event))
+                        ></textarea>
+                    </label>
+                    <label class="toggle-setting">
+                        <span>"屏幕共享时隐藏内容"</span>
+                        <input
+                            type="checkbox"
+                            prop:checked=move || desktop_preferences.get().screen_share_protection
+                            on:change=move |event| set_desktop_preferences.update(|value| {
+                                value.screen_share_protection = event_target_checked(&event);
+                            })
+                        />
+                    </label>
+                    <p>"固定到 Pinboard 的内容不会被保留策略清理。机密和瞬态剪贴板类型始终默认跳过。"</p>
+                    </div>
+                    <div class="settings-page" data-settings-page="backup" hidden=move || settings_tab.get() != "backup"><h2>"备份"</h2><p class="settings-description">"导出与恢复本地数据"</p>
+                    <section class="backup-settings" aria-label="本地备份">
+                        <div>
+                            <strong>"本地备份"</strong>
+                            <span>"包含历史、Pinboards 与本地设置；不上传到云端。"</span>
+                        </div>
+                        <div class="backup-actions">
+                            <button type="button" on:click=export_backup>"导出备份"</button>
+                            <button class="restore-backup" type="button" on:click=restore_backup>
+                                "恢复备份"
+                            </button>
+                        </div>
+                    </section>
+                    </div>
+                    <div class="settings-page" data-settings-page="advanced" hidden=move || settings_tab.get() != "advanced"><h2>"高级"</h2><p class="settings-description">"本机集成与实验功能"</p>
+                    <section class="sync-settings" aria-label="iCloud 同步状态">
+                        <div class="sync-heading">
+                            <div>
+                                <strong>"iCloud 同步"</strong>
+                                <span>{move || match sync_status.get() {
+                                    Some(current) if current.enabled && current.blocked_reason.is_some() => current.blocked_reason.unwrap_or_default(),
+                                    Some(current) if current.pending_shared_downloads > 0 => {
+                                        format!("{} 项共享变更等待本地整合 · 完整共享同步仍在建设中", current.pending_shared_downloads)
+                                    }
+                                    Some(current) if current.pending_conflicts > 0 => {
+                                        format!("{} 个并发编辑待处理 · {} 项待发送", current.pending_conflicts, current.pending_changes)
+                                    }
+                                    Some(current) if current.pending_dependencies > 0 => {
+                                        format!("{} 项固定关系等待内容到齐 · {} 项待发送", current.pending_dependencies, current.pending_changes)
+                                    }
+                                    Some(current) if current.syncing => {
+                                        format!("正在安全同步 · {} 项待发送", current.pending_changes)
+                                    }
+                                    Some(current) if current.cloud_transport_configured && current.enabled => {
+                                        current.last_success_at_ms.map_or_else(
+                                            || format!("CloudKit 已配置 · 待发送 {} 项", current.pending_changes),
+                                            |last_success| format!("上次同步 {} · 待发送 {} 项", relative_timestamp_ms(last_success), current.pending_changes),
+                                        )
+                                    }
+                                    Some(current) if current.enabled => current.blocked_reason.unwrap_or_else(|| {
+                                        format!("同步已选择启用 · {} 项待发送", current.pending_changes)
+                                    }),
+                                    Some(current) if current.local_outbox_ready => {
+                                        format!("已关闭 · 本地队列保留 {} 项，不连接 CloudKit", current.pending_changes)
+                                    }
+                                    Some(_) => "本地同步队列不可用".into(),
+                                    None => "正在检查本地同步状态…".into(),
+                                }}</span>
+                            </div>
+                            <input
+                                aria-label="启用 iCloud 同步"
+                                type="checkbox"
+                                prop:checked=move || sync_status.get().is_some_and(|value| value.enabled)
+                                on:change=toggle_cloud_sync
+                            />
+                        </div>
+                        {move || sync_status.get().filter(|s| s.pending_shared_conflicts > 0).map(|s| view! {
+                            <p role="status">{format!("{} 个共享并发编辑待选择，双方内容均已保留。", s.pending_shared_conflicts)}</p>
+                        })}
+                    </section>
+                    <SyncConflictList conflicts=sync_conflicts resolving=resolving_conflicts on_resolve=resolve_sync_conflict />
+                    <SharedConflictList conflicts=shared_conflicts resolving=resolving_shared_conflicts on_resolve=resolve_shared_conflict />
+                    <section class="mcp-settings" aria-label="MCP 本地访问">
+                        <div class="mcp-heading">
+                            <div>
+                                <strong>"MCP 本地访问"</strong>
+                                <span>"让明确授权的 AI 客户端通过本机 stdio 搜索、读取和整理历史。默认关闭，不开放网络端口。"</span>
+                            </div>
+                            <input
+                                aria-label="启用 MCP 本地访问"
+                                type="checkbox"
+                                prop:checked=move || mcp_status.get().is_some_and(|value| value.enabled)
+                                on:change=toggle_mcp
+                            />
+                        </div>
+                        <div class="mcp-create-row">
+                            <input
+                                type="text"
+                                maxlength="80"
+                                placeholder="客户端名称，例如 Codex"
+                                prop:value=move || mcp_client_name.get()
+                                on:input=move |event| set_mcp_client_name.set(event_target_value(&event))
+                            />
+                            <button type="button" on:click=create_mcp_connection>"创建并启用"</button>
+                        </div>
+                        <div class="mcp-clients">
+                            {move || match mcp_status.get() {
+                                Some(current) if current.clients.is_empty() => view! {
+                                    <span class="mcp-empty">"尚未授权客户端"</span>
+                                }.into_any(),
+                                Some(current) => current.clients.into_iter().map(|client| {
+                                    let client_id = client.id.clone();
+                                    let last_used = client.last_used_at
+                                        .as_deref()
+                                        .unwrap_or("尚未使用")
+                                        .to_owned();
+                                    view! {
+                                        <div class="mcp-client-row" title=format!("创建于 {} · 最后使用 {}", client.created_at, last_used)>
+                                            <span>{client.display_name}</span>
+                                            <button
+                                                type="button"
+                                                on:click=move |_| revoke_mcp_connection.run(client_id.clone())
+                                            >"撤销"</button>
+                                        </div>
+                                    }
+                                }).collect_view().into_any(),
+                                None => view! {
+                                    <span class="mcp-empty">"正在检查授权状态…"</span>
+                                }.into_any(),
+                            }}
+                        </div>
+                        {move || mcp_connection_config.get().map(|configuration| view! {
+                            <div class="mcp-config-once">
+                                <strong>"仅显示一次的连接配置"</strong>
+                                <span>"其中包含访问凭据。保存到目标客户端后请关闭此面板；不要粘贴到聊天或提交到仓库。"</span>
+                                <textarea readonly prop:value=configuration></textarea>
+                            </div>
+                        })}
+                    </section>
+                    </div>
+                    </div></div>
+                    <footer><span>"通用与隐私选项修改后保存"</span><button class="save-settings" type="button" on:click=save_settings>"保存设置"</button></footer>
+                </aside>
+            })}
+
             <For
                 each=move || { preview_open.get().and_then(|id| clips.get().into_iter().find(|clip| clip.id == id)).into_iter().collect::<Vec<_>>() }
                 key=|clip| (clip.id, clip.content_hash, clip.title.clone())
@@ -4435,6 +4601,7 @@ pub fn App() -> impl IntoView {
                         view! {
                             <PreviewOverlay
                                 clip=clip
+                                ready=Signal::derive(move || workspace_ready.get())
                                 preview=Signal::derive(move || previews.get().get(&clip_id).cloned())
                                 loading=Signal::derive(move || preview_loading.get().contains(&clip_id))
                                 editing=Signal::derive(move || image_edit_loading.get().contains(&clip_id))
@@ -4717,6 +4884,7 @@ fn PdfDocumentPreview(clip_id: ClipId) -> impl IntoView {
 #[component]
 fn PreviewOverlay(
     clip: ClipItem,
+    ready: Signal<bool>,
     preview: Signal<Option<PreviewResult>>,
     loading: Signal<bool>,
     editing: Signal<bool>,
@@ -4728,7 +4896,9 @@ fn PreviewOverlay(
 ) -> impl IntoView {
     let preview_root = NodeRef::<html::Aside>::new();
     Effect::new(move |_| {
-        if let Some(root) = preview_root.get() {
+        if ready.get()
+            && let Some(root) = preview_root.get()
+        {
             let _ = root.focus();
         }
     });
@@ -4771,7 +4941,7 @@ fn PreviewOverlay(
         .into_any()
     };
     view! {
-        <aside node_ref=preview_root class="preview-overlay" role="dialog" aria-modal="true" tabindex="-1" aria-label="Quick Look 预览">
+        <aside node_ref=preview_root class="preview-overlay" role="dialog" aria-modal="false" tabindex="-1" aria-label="Quick Look 预览">
             <header>
                 <div>
                     <strong>{clip.title}</strong>

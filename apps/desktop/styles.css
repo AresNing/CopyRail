@@ -7,12 +7,15 @@
   --muted: #595959;
   --hairline: rgba(255, 255, 255, 0.42);
   --panel: #ededed;
-  --selected: #0a84ff;
-  --selection-text: #075399;
-  --card-surface: #fffdfa;
-  --card-muted: #685f56;
-  --surface: rgba(250, 247, 241, 0.98);
-  --solid-surface: #faf7f1;
+  --selected: #737373;
+  --selection-surface: #e8e8e8;
+  --tab-selected: #dedede;
+  --tab-hover: #e7e7e7;
+  --selection-text: #333333;
+  --card-surface: #fafafa;
+  --card-muted: #595959;
+  --surface: rgba(250, 250, 250, 0.98);
+  --solid-surface: #fafafa;
   --solid-shell: #ededed;
   --surface-border: rgba(40, 30, 20, 0.16);
   --subtle-surface: rgba(0, 0, 0, 0.05);
@@ -40,7 +43,7 @@ body {
   user-select: none;
 }
 
-/* Clip backdrop/shadow pixels too; AppKit supplies the external window shadow. */
+/* Keep the transparent host clipped without painting a second panel surface. */
 body { clip-path: inset(0 round 16px); }
 
 #boot-status {
@@ -109,13 +112,8 @@ button:disabled {
   color: var(--text);
   overflow: hidden;
   outline: none;
-  background:
-    linear-gradient(115deg, #fafafa, #ededed 48%, #e2e2e2),
-    var(--panel);
-  backdrop-filter: blur(34px) saturate(0%);
-  -webkit-backdrop-filter: blur(34px) saturate(0%);
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  box-shadow: 0 -18px 48px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  background: transparent;
+  border: 0;
 }
 
 .drag-region {
@@ -131,7 +129,7 @@ button:disabled {
   display: grid;
   grid-template-columns: 106px minmax(160px, 260px) minmax(0, 1fr);
   grid-template-rows: 32px 26px;
-  grid-template-areas: "brand search actions" "boards boards guide";
+  grid-template-areas: "brand search actions" "boards boards boards";
   align-items: center;
   gap: 7px 12px;
   padding: 8px 18px 3px;
@@ -284,7 +282,7 @@ button:disabled {
 /* Pointer hover can remain on a different board during keyboard/AX
    navigation. Keep it visibly weaker than the persistent selection. */
 .pinboard:hover:not(.active):not(.drop-target) {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--tab-hover);
 }
 
 .pin-dot {
@@ -425,7 +423,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   border: 1px solid rgba(255, 255, 255, 0.58);
   border-radius: 13px;
   background: var(--surface);
-  box-shadow: 0 16px 48px rgba(56, 33, 14, 0.24);
+  box-shadow: none;
   backdrop-filter: blur(22px) saturate(150%);
   -webkit-backdrop-filter: blur(22px) saturate(150%);
   max-height: calc(100% - 52px);
@@ -438,14 +436,16 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   left: 50%;
   z-index: 10;
   display: grid;
-  grid-template-columns: 28px 180px 48px;
+  grid-template-columns: minmax(0, 1fr) 44px 48px;
+  width: min(340px, calc(100vw - 32px));
+  align-items: end;
   gap: 7px;
   padding: 9px;
   transform: translateX(-50%);
   border: 1px solid rgba(255, 255, 255, 0.58);
   border-radius: 12px;
   background: var(--surface);
-  box-shadow: 0 14px 42px rgba(56, 33, 14, 0.22);
+  box-shadow: none;
 }
 
 .pinboard-editor {
@@ -453,15 +453,15 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   top: 42px;
   left: 50%;
   z-index: 11;
-  width: 300px;
+  width: min(340px, calc(100vw - 32px));
   display: grid;
-  gap: 8px;
+  gap: 12px;
   padding: 10px;
   transform: translateX(-50%);
   border: 1px solid rgba(255, 255, 255, 0.58);
   border-radius: 12px;
   background: var(--surface);
-  box-shadow: 0 14px 42px rgba(56, 33, 14, 0.22);
+  box-shadow: none;
 }
 
 .pinboard-editor header,
@@ -492,8 +492,8 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 
 .pinboard-editor-fields {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  gap: 7px;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 12px;
 }
 
 .pinboard-editor-fields input {
@@ -554,7 +554,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   border: 1px solid rgba(255, 255, 255, 0.58);
   border-radius: 11px;
   background: var(--surface);
-  box-shadow: 0 14px 42px rgba(56, 33, 14, 0.22);
+  box-shadow: none;
 }
 
 .filter-popover {
@@ -571,7 +571,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   border: 1px solid rgba(255, 255, 255, 0.58);
   border-radius: 11px;
   background: var(--surface);
-  box-shadow: 0 14px 42px rgba(56, 33, 14, 0.22);
+  box-shadow: none;
 }
 
 .filter-popover header {
@@ -1146,8 +1146,8 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   background: var(--card-surface);
   --card-accent: #707987;
   --card-accent-ink: #ffffff;
-  box-shadow: 0 4px 14px rgba(61, 40, 20, 0.11), inset 0 0 0 0.5px rgba(0, 0, 0, 0.03);
-  transition: box-shadow 140ms ease-out, border-color 140ms ease-out;
+  box-shadow: none;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out;
 }
 
 .clip-card {
@@ -1170,7 +1170,8 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 
 .clip-card.selected {
   border-color: var(--selected);
-  box-shadow: 0 0 0 2px var(--selected), 0 6px 18px rgba(0, 92, 200, 0.18);
+  background: var(--selection-surface);
+  box-shadow: none;
 }
 
 .pinboards .pinboard.drop-target {
@@ -1475,7 +1476,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   border-radius: 8px;
   color: #423a32;
   background: #fff8ed;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-shadow: none;
   font-size: 20px;
   font-weight: 700;
 }
@@ -1537,7 +1538,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   border: 1px solid rgba(255, 255, 255, 0.68);
   border-radius: 14px;
   background: var(--surface);
-  box-shadow: 0 20px 60px rgba(45, 25, 9, 0.28);
+  box-shadow: none;
 }
 
 .content-editor > header,
@@ -1684,25 +1685,10 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   border-radius: 16px;
   color: var(--text);
   background: var(--surface);
-  box-shadow: 0 20px 80px rgba(40, 24, 10, 0.34);
+  box-shadow: none;
   backdrop-filter: blur(34px) saturate(145%);
   -webkit-backdrop-filter: blur(34px) saturate(145%);
 }
-
-/* The native frame expands for reading; keep the same timeline mounted so
-   closing restores selection, scroll offset and cached thumbnails. */
-.reading-preview > :not(.preview-overlay):not(.error-banner) {
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.reading-preview .preview-overlay {
-  inset: 0;
-  border: 0;
-  box-shadow: none;
-}
-
-.reading-preview > .error-banner { z-index: 40; }
 
 .preview-overlay > header {
   min-height: 42px;
@@ -1860,7 +1846,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   border-radius: 11px;
   color: white;
   background: #141414;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
   font-size: 22px;
   font-weight: 700;
 }
@@ -1874,7 +1860,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   border-radius: 8px;
   color: white;
   background: rgba(177, 34, 34, 0.9);
-  box-shadow: 0 5px 18px rgba(80, 0, 0, 0.2);
+  box-shadow: none;
   font-size: 10px;
 }
 
@@ -1888,7 +1874,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   border-radius: 8px;
   color: white;
   background: rgba(35, 132, 78, 0.92);
-  box-shadow: 0 5px 18px rgba(0, 70, 28, 0.18);
+  box-shadow: none;
   font-size: 10px;
 }
 
@@ -1921,10 +1907,10 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 .rail-brand svg { width: 28px; height: 28px; display: block; }
 .search-wrap { grid-area: search; border-radius: 6px; }
 .toolbar-actions { grid-area: actions; min-width: 0; justify-content: flex-end; }
-.pinboards { grid-area: boards; grid-column: 1 / -1; margin-right: 170px; gap: 4px; }
+.pinboards { grid-area: boards; grid-column: 1 / -1; margin-right: 0; gap: 4px; }
 .paste-shell.compact .pinboards { grid-area: boards; margin-right: 0; }
 .pinboard { border-radius: 5px; height: 25px; }
-.pinboard.active { box-shadow: inset 0 -2px 0 currentColor; }
+.pinboard.active { background: var(--tab-selected); box-shadow: none; }
 .rail-guide { grid-area: guide; display: flex; justify-content: flex-end; gap: 14px; color: var(--muted); font-size: 10px; }
 .rail-guide kbd { color: inherit; font-family: inherit; }
 .card-provenance { min-width: 0; flex: 1; display: grid; gap: 1px; }
@@ -1955,34 +1941,37 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 @keyframes rail-appear { from { opacity: 0; } to { opacity: 1; } }
 
 /* A manually shortened normal window must remain usable at the native 148px minimum. */
-@media (max-height: 190px) {
-  .paste-shell:not(.compact) .toolbar { height: 42px; grid-template-columns: 24px minmax(135px, 190px) minmax(75px, 1fr) auto; grid-template-rows: 30px; grid-template-areas: "brand search boards actions"; gap: 5px; padding: 6px 14px; }
-  .paste-shell:not(.compact) .rail-brand strong, .paste-shell:not(.compact) .rail-guide { display: none; }
-  .paste-shell:not(.compact) .rail-brand svg { width: 24px; height: 24px; }
-  .paste-shell:not(.compact) .pinboards { grid-area: boards; margin-right: 0; }
-  .paste-shell:not(.compact) .timeline { height: calc(100% - 42px); padding: 4px 14px 6px; }
-  .paste-shell:not(.compact) .clip-card { flex-basis: 168px; min-height: 74px; grid-template-rows: 24px minmax(0, 1fr); }
-  .paste-shell:not(.compact) .card-header { padding: 3px 8px 0; }
-  .paste-shell:not(.compact) .card-content { padding-top: 5px; gap: 3px; }
-  .paste-shell:not(.compact) .card-title { font-size: 12px; line-height: 15px; }
-  .paste-shell:not(.compact) .card-preview { max-height: 28px; -webkit-line-clamp: 2; }
-  .paste-shell:not(.compact) .card-time, .paste-shell:not(.compact) .clip-card footer { display: none; }
-  .paste-shell:not(.compact) .clip-card:focus-within { grid-template-rows: 24px minmax(0, 1fr) 22px; }
-  .paste-shell:not(.compact) .clip-card:focus-within footer { display: flex; }
-  .paste-shell:not(.compact) .clip-card:focus-within .card-content > :not(.card-title), .paste-shell:not(.compact) .card-provenance .card-summary { display: none; }
-  .paste-shell:not(.compact) .empty-message strong { font-size: 13px; }
-  .paste-shell:not(.compact) .empty-message { gap: 3px; }
-}
+  .paste-shell.dock-short:not(.compact) .toolbar { height: 42px; grid-template-columns: 24px minmax(135px, 190px) minmax(75px, 1fr) auto; grid-template-rows: 30px; grid-template-areas: "brand search boards actions"; gap: 5px; padding: 6px 14px; }
+  .paste-shell.dock-short:not(.compact) .rail-brand strong, .paste-shell.dock-short:not(.compact) .rail-guide { display: none; }
+  .paste-shell.dock-short:not(.compact) .rail-brand svg { width: 24px; height: 24px; }
+  .paste-shell.dock-short:not(.compact) .pinboards { grid-area: boards; margin-right: 0; }
+  .paste-shell.dock-short:not(.compact) .timeline { height: calc(100% - 42px); padding: 4px 14px 6px; }
+  .paste-shell.dock-short:not(.compact) .clip-card { flex-basis: 168px; min-height: 74px; grid-template-rows: 24px minmax(0, 1fr); }
+  .paste-shell.dock-short:not(.compact) .card-header { padding: 3px 8px 0; }
+  .paste-shell.dock-short:not(.compact) .card-content { padding-top: 5px; gap: 3px; }
+  .paste-shell.dock-short:not(.compact) .card-title { font-size: 12px; line-height: 15px; }
+  .paste-shell.dock-short:not(.compact) .card-preview { max-height: 28px; -webkit-line-clamp: 2; }
+  .paste-shell.dock-short:not(.compact) .card-time, .paste-shell.dock-short:not(.compact) .clip-card footer { display: none; }
+  .paste-shell.dock-short:not(.compact) .clip-card:focus-within { grid-template-rows: 24px minmax(0, 1fr) 22px; }
+  .paste-shell.dock-short:not(.compact) .clip-card:focus-within footer { display: flex; }
+  .paste-shell.dock-short:not(.compact) .clip-card:focus-within .card-content > :not(.card-title), .paste-shell.dock-short:not(.compact) .card-provenance .card-summary { display: none; }
+  .paste-shell.dock-short:not(.compact) .empty-message strong { font-size: 13px; }
+  .paste-shell.dock-short:not(.compact) .empty-message { gap: 3px; }
+
 @media (prefers-color-scheme: dark) {
   :root {
     --text: #f5f5f5;
     --muted: #c7c7c7;
-    --selection-text: #add8ff;
+    --selection-text: #ededed;
+    --selected: #a0a0a0;
+    --selection-surface: #383838;
+    --tab-selected: #373737;
+    --tab-hover: #2c2c2c;
     --panel: #202020;
-    --card-surface: #2c2b2a;
-    --card-muted: #c0b7ae;
-    --surface: rgba(40, 38, 37, 0.98);
-    --solid-surface: #282625;
+    --card-surface: #292929;
+    --card-muted: #bdbdbd;
+    --surface: rgba(40, 40, 40, 0.98);
+    --solid-surface: #282828;
     --solid-shell: #202020;
     --surface-border: rgba(255, 255, 255, 0.22);
     --subtle-surface: rgba(255, 255, 255, 0.1);
@@ -2005,13 +1994,9 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
     background: rgba(255, 255, 255, 0.12);
   }
 
-  .pinboard.active {
-    background: rgba(255, 255, 255, 0.18);
-  }
+  .pinboard.active { background: var(--tab-selected); }
 
-  .pinboard:hover:not(.active):not(.drop-target) {
-    background: rgba(255, 255, 255, 0.06);
-  }
+  .pinboard:hover:not(.active):not(.drop-target) { background: var(--tab-hover); }
 
   .organize-button:hover,
   .organize-button.active,
@@ -2020,12 +2005,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
     background: var(--action-surface);
   }
 
-  .paste-shell {
-    background:
-      linear-gradient(115deg, #292929, #202020 48%, #181818),
-      var(--panel);
-    border-top-color: rgba(255, 255, 255, 0.18);
-  }
+
 
   .pinboard,
   .status-button,
@@ -2110,9 +2090,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .paste-shell {
-    background: var(--solid-shell);
-  }
+  .dock-surface { background: var(--solid-shell); }
 
   .settings-popover,
   .filter-popover,
@@ -2140,9 +2118,104 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 
 @media (prefers-contrast: more) {
   :root { --muted: var(--text); --card-muted: var(--text); --surface-border: var(--text); }
-  .paste-shell { background: var(--solid-shell); }
+  .dock-surface { background: var(--solid-shell); }
   .clip-card { border-width: 2px; }
 }
 
 /* CopyRail brand artwork; content and semantic colours remain independent. */
 .empty-mark svg { width: 40px; height: 40px; display: block; }
+
+/* A compact reader/settings workspace above the persistent clipboard rail. */
+.paste-shell { --dock-height: min(var(--saved-dock-height, 248px), 100%); }
+.dock-surface {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: var(--dock-height);
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  background: var(--solid-shell);
+  overflow: hidden;
+}
+.reading-preview > .dock-surface { visibility: visible; pointer-events: auto; }
+.expanded-workspace .preview-overlay,
+.expanded-workspace .settings-popover {
+  position: absolute;
+  inset: 0 auto calc(var(--dock-height) + 12px) 50%;
+  transform: translateX(-50%);
+  width: min(720px, calc(100% - 24px));
+  max-height: 360px;
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  box-shadow: none;
+  background: var(--solid-shell);
+}
+.reading-preview .preview-overlay { visibility: visible; pointer-events: auto; }
+.preview-overlay > header { padding: 12px 16px; min-height: 58px; }
+.preview-overlay > header strong { font-size: 14px; font-weight: 600; }
+.preview-overlay > header span, .preview-overlay > footer { font-size: 11px; }
+.preview-text {
+  padding: 18px 22px;
+  font: 13px/1.7 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+.preview-image { width: 100%; height: 100%; min-height: 0; grid-template-rows: minmax(0, 1fr) auto; padding: 10px; }
+.preview-image img { max-height: 100%; }
+.expanded-workspace .settings-popover {
+  width: min(760px, calc(100% - 24px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+  visibility: visible;
+  pointer-events: auto;
+}
+.settings-popover > header { padding: 12px 18px; border-bottom: 1px solid var(--surface-border); }
+.settings-layout { min-height: 0; display: grid; grid-template-columns: 136px minmax(0, 1fr); }
+.settings-nav { padding: 12px 8px; border-right: 1px solid var(--surface-border); display: flex; flex-direction: column; gap: 4px; }
+.settings-nav button { padding: 9px 12px; text-align: left; border: 0; border-radius: 7px; color: var(--muted); background: transparent; font-size: 12px; }
+.settings-nav button.active { color: var(--text); background: var(--subtle-surface); font-weight: 600; }
+.settings-content { min-height: 0; overflow: auto; padding: 14px 22px 20px; }
+.settings-page[hidden] { display: none; }
+.settings-page h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.settings-page .settings-description { margin: 4px 0 16px; font-size: 11px; }
+.settings-page > label { padding: 11px 0; margin: 0; border-bottom: 1px solid var(--surface-border); font-size: 12px; grid-template-columns: minmax(0, 1fr) 110px; align-items: center; }
+.settings-page > .excluded-apps { grid-template-columns: 1fr; gap: 8px; }
+.settings-page > .toggle-setting { display: flex; justify-content: space-between; }
+.settings-page .toggle-setting input { accent-color: var(--selected); }
+.settings-page > section { margin: 14px 0 0; padding: 12px; border: 1px solid var(--surface-border); border-radius: 9px; }
+.settings-page .permission-help { font-size: 11px; line-height: 1.6; }
+.permission-troubleshooting { margin-top: 10px; font-size: 11px; color: var(--muted); }
+.permission-troubleshooting summary { cursor: pointer; }
+.settings-popover > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 18px; border-top: 1px solid var(--surface-border); }
+.settings-popover > footer > span { font-size: 10px; color: var(--muted); }
+.settings-popover .save-settings { width: auto; margin: 0; padding: 7px 16px; }
+@media (max-width: 600px) {
+  .settings-layout { grid-template-columns: 96px minmax(0, 1fr); }
+  .settings-content { padding: 12px; }
+  .settings-nav button { padding: 8px; }
+}
+
+/* Flat surfaces: selection uses neutral fill and a single fine boundary. */
+.paste-shell, .dock-surface, .clip-card, .settings-popover, .preview-overlay,
+.filter-popover, .pin-menu, .pinboard-creator, .pinboard-editor, .content-editor,
+.notice-banner, .error-banner { box-shadow: none; }
+.preview-overlay, .settings-popover { outline: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.expanded-workspace:not(.workspace-ready) > :is(.preview-overlay, .settings-popover) { visibility: hidden; pointer-events: none; }
+.timeline:focus-visible .clip-card.keyboard-active { outline: 1px solid var(--selected); outline-offset: -1px; }
+.pinboard { border-radius: 7px; }
+
+/* Native color wells have an intrinsic width; constrain both grid items and inputs. */
+.pinboard-name-field, .pinboard-color-field { display: grid; gap: 5px; min-width: 0; color: var(--muted); font-size: 10px; }
+.pinboard-name-field input, .pinboard-color-field input { box-sizing: border-box; width: 100%; max-width: 100%; }
+.pinboard-color-field input[type="color"] { width: 44px; cursor: pointer; }
+.pinboard-editor-fields input:focus-visible, .pinboard-creator input:focus-visible { outline: 1px solid var(--selected); outline-offset: 2px; }
+.capture-status { border: 0; border-radius: 6px; padding: 5px 8px; color: var(--muted); background: var(--tab-selected); font-size: 10px; white-space: nowrap; }
+.capture-settings, .queue-help { padding: 12px 0; border-bottom: 1px solid var(--surface-border); }
+.capture-settings p, .queue-help p { margin: 6px 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.capture-settings .status-button { margin-top: 4px; background: var(--tab-selected); }
+.keyboard-reference { margin: 14px 0 0; font-size: 11px; }
+.keyboard-reference > div { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--surface-border); }
+.keyboard-reference dd { margin: 0; white-space: nowrap; }
+.keyboard-reference kbd { color: var(--muted); font: inherit; }
+.pinboard-editor, .pinboard-creator { max-height: calc(100% - 50px); overflow-y: auto; }
