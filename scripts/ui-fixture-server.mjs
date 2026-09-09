@@ -118,7 +118,8 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
     emit('pasters-drag-ended', { sessionId: state.drag.sessionId, cancelled: false });
     state.drag = null;
   });
-  window.languageFixture = { calls: [], fail: false, delayMs: 0 };
+  window.languageFixture = { calls: [], fail: false, delayMs: 0, systemLocale: new URLSearchParams(location.search).get('system_locale') ?? 'zh-CN' };
+  const languageSettings = preference => ({ preference, effective: preference === 'system' ? (/^zh(?:[-_]|$)/i.test(window.languageFixture.systemLocale) ? 'zh-CN' : 'en') : preference });
   window.__TAURI__ = { event: { listen: async (name, handler) => {
     if (!listeners.has(name)) listeners.set(name, new Set());
     listeners.get(name).add(handler);
@@ -154,14 +155,15 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
       case 'get_capture_preferences':
         return { retention: { max_age_days: null, max_unpinned_items: null }, excluded_bundle_ids: [] };
       case 'get_desktop_preferences':
-        return { language: localStorage.getItem('fixture-language') ?? 'zh-CN', launch_at_login: false, screen_share_protection: false, compact_mode: (visualMode || pinboardMode) && new URLSearchParams(location.search).get('compact') === '1' };
+        return { language: localStorage.getItem('fixture-language') ?? 'system', launch_at_login: false, screen_share_protection: false, compact_mode: (visualMode || pinboardMode) && new URLSearchParams(location.search).get('compact') === '1' };
+      case 'get_language_settings': return languageSettings(localStorage.getItem('fixture-language') ?? 'system');
       case 'set_language': {
         const control = window.languageFixture;
         control.calls.push(args.request);
         if (control.delayMs) await new Promise(resolve => setTimeout(resolve, control.delayMs));
         if (control.fail) throw { message: 'Synthetic language save failure' };
         localStorage.setItem('fixture-language', args.request);
-        return args.request;
+        return languageSettings(args.request);
       }
       case 'get_permission_status': return { accessibilityTrusted: false };
       case 'get_shortcut_status': {

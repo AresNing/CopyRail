@@ -54,6 +54,29 @@ await withCompiledUiTest(async({page,evaluate,waitFor,fixture,artifacts,screensh
     observations.push({theme,immediate:true,persistedAcrossReload:true,draftPreserved:true,failedSaveRolledBack:true,userContentPreserved:true});
     assert.equal(await evaluate(`window.previewEditFixture.calls.length`),0);
   }
+  // First launch and pre-language installations inherit the PRIMARY OS language.
+  for(const [systemLocale,effective] of [['en-US','en'],['zh-Hans-CN','zh-CN'],['zh-Hant-TW','zh-CN'],['ja-JP','en']]) {
+    await evaluate(`localStorage.removeItem('fixture-language')`);
+    await size(248);
+    await page('Page.navigate',{url:fixture+'/?fixture=readme&system_locale='+systemLocale});
+    await waitFor(`document.querySelectorAll('.clip-card').length===6 && document.documentElement.lang===${JSON.stringify(effective)}`);
+    await openSettings();
+    assert.equal(await evaluate(`document.querySelector('.language-select').value`),'system');
+    assert.equal(await evaluate(`localStorage.getItem('fixture-language')`),null,'resolving the OS language must not pin an explicit override');
+    const override=effective==='en'?'zh-CN':'en';
+    await choose(override);await waitFor(`document.documentElement.lang===${JSON.stringify(override)} && !document.querySelector('.language-select').disabled`);
+    await page('Page.reload');await waitFor(`document.querySelectorAll('.clip-card').length===6 && document.documentElement.lang===${JSON.stringify(override)}`);
+    await size(248);await openSettings();
+    assert.equal(await evaluate(`document.querySelector('.language-select').value`),override);
+    await choose('system');await waitFor(`document.documentElement.lang===${JSON.stringify(effective)} && !document.querySelector('.language-select').disabled`);
+    assert.equal(await evaluate(`localStorage.getItem('fixture-language')`),'system');
+    // A changed system language takes effect on the next launch, without a rewrite.
+    const changed=effective==='en'?'zh-CN':'en-US';
+    await page('Page.navigate',{url:fixture+'/?fixture=readme&system_locale='+changed});
+    await waitFor(`document.querySelectorAll('.clip-card').length===6 && document.documentElement.lang===${JSON.stringify(override)}`);
+    assert.equal(await evaluate(`localStorage.getItem('fixture-language')`),'system');
+    observations.push({systemLocale,effective,defaultIsSystem:true,manualOverridePersisted:true,returnToSystem:true,systemChangeOnRelaunch:true});
+  }
   assert.deepEqual(await fingerprint(),assets);
   await writeFile(join(artifacts,'language-report.json'),JSON.stringify({result:'passed',browser,assetSha256:assets,observations,syntheticData:true,nativeEndToEnd:false},null,2)+'\n');
   console.log(JSON.stringify({result:'passed',observations}));

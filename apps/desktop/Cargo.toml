@@ -18,7 +18,7 @@ leptos = { version = "0.8.20", features = ["csr"] }
 serde-wasm-bindgen = "0.6.5"
 wasm-bindgen = "0.2.127"
 wasm-bindgen-futures = "0.4.77"
-web-sys = { version = "0.3.104", features = ["Document", "Element", "DomRect", "DragEvent", "PointerEvent", "NodeList", "Selection", "HtmlDialogElement"] }
+web-sys = { version = "0.3.104", features = ["Navigator", "Document", "Element", "DomRect", "DragEvent", "PointerEvent", "NodeList", "Selection", "HtmlDialogElement"] }
 
 [lints]
 workspace = true

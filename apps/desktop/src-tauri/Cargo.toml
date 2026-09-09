@@ -59,7 +59,7 @@ block2.workspace = true
 objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["CGContext", "CGBitmapContext", "CGColorSpace", "CGDataProvider", "CGImage", "CGPDFDocument", "CGPDFPage"] }
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["CFData", "CFCGTypes", "std"] }
 objc2-quartz-core = { version = "0.3.2", default-features = false, features = ["CALayer", "objc2-core-foundation"] }
-objc2-foundation = { workspace = true, features = ["NSAttributedString", "NSRange", "NSValue", "NSURLRequest", "NSRunLoop", "NSNotification", "block2"] }
+objc2-foundation = { workspace = true, features = ["NSLocale", "NSAttributedString", "NSRange", "NSValue", "NSURLRequest", "NSRunLoop", "NSNotification", "block2"] }
 objc2-app-kit = { workspace = true, features = ["NSAlert", "NSAttributedString", "NSButton", "NSScrollView", "NSTextView", "NSTextStorage", "NSTextContainer", "NSFontManager", "NSTextField", "NSView", "NSWindow", "NSScreen", "NSApplication", "NSFont", "NSColor", "NSEvent", "NSWritingToolsCoordinator", "NSMenu", "NSMenuItem", "NSImage", "NSBezierPath", "NSGraphicsContext", "NSStringDrawing", "NSBitmapImageRep", "NSGraphics", "NSParagraphStyle"] }
 dom_query = "0.27.0"
 cssparser = "0.36.0"

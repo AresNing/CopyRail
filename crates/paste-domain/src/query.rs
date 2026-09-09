@@ -111,7 +111,7 @@ impl CapturePreferences {
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(default)]
 pub struct DesktopPreferences {
-    pub language: crate::Language,
+    pub language: crate::LanguagePreference,
     pub launch_at_login: bool,
     pub screen_share_protection: bool,
     pub compact_mode: bool,

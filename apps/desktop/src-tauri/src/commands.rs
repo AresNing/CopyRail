@@ -202,7 +202,8 @@ pub async fn show_clip_context_menu(
         .store
         .load_desktop_preferences()
         .map_err(ApiError::storage)?
-        .language;
+        .language
+        .resolve(&crate::locale::system_language());
     let (sender, receiver) = tokio::sync::oneshot::channel();
     app.run_on_main_thread(move || {
         let result =
@@ -2158,17 +2159,33 @@ pub fn update_capture_preferences(
 pub fn set_language(
     app: AppHandle,
     state: State<'_, DesktopState>,
-    request: paste_domain::Language,
-) -> ApiResult<paste_domain::Language> {
+    request: paste_domain::LanguagePreference,
+) -> ApiResult<paste_domain::LanguageSettings> {
     let saved = state
         .store
         .save_language(request)
         .map_err(ApiError::storage)?;
-    crate::locale::set_language(saved);
+    let settings = crate::locale::set_language(saved);
     if let Err(error) = crate::native_menu::relabel(&app) {
         eprintln!("Could not refresh native menu language: {error}");
     }
-    Ok(saved)
+    Ok(settings)
+}
+
+/// Read effective language independently of system login-startup services.
+#[tauri::command]
+pub fn get_language_settings(
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+) -> ApiResult<paste_domain::LanguageSettings> {
+    let preference = state
+        .store
+        .load_desktop_preferences()
+        .map_err(ApiError::storage)?
+        .language;
+    let settings = crate::locale::set_language(preference);
+    let _ = crate::native_menu::relabel(&app);
+    Ok(settings)
 }
 
 #[tauri::command]
@@ -2500,7 +2517,7 @@ mod tests {
     fn isolated_desktop_preferences_never_access_the_unregistered_autostart_plugin() {
         let store = paste_storage::SqliteStore::open_in_memory().expect("synthetic store");
         let saved = paste_domain::DesktopPreferences {
-            language: paste_domain::Language::Chinese,
+            language: paste_domain::LanguagePreference::Chinese,
             launch_at_login: true,
             compact_mode: true,
             screen_share_protection: true,

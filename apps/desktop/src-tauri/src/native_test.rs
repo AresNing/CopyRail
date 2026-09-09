@@ -258,6 +258,7 @@ pub fn allows_command(command: &str) -> bool {
             | "get_capture_preferences"
             | "get_desktop_preferences"
             | "set_language"
+            | "get_language_settings" // Read system locale and the isolated preference only.
             | "capture_status"
             | "start_clip_drag"
             | "update_clip_drag_feedback" // Geometry only, active native session and main-window scoped.

@@ -19,6 +19,53 @@ impl Language {
     }
 }
 
+/// Persist the user's intent separately from the resolved display language.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub enum LanguagePreference {
+    #[default]
+    #[serde(rename = "system")]
+    System,
+    #[serde(rename = "zh-CN")]
+    Chinese,
+    #[serde(rename = "en")]
+    English,
+}
+
+impl LanguagePreference {
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Chinese => "zh-CN",
+            Self::English => "en",
+        }
+    }
+
+    pub fn resolve(self, system_language: &str) -> Language {
+        match self {
+            Self::Chinese => Language::Chinese,
+            Self::English => Language::English,
+            Self::System => {
+                if system_language
+                    .trim()
+                    .split(['-', '_'])
+                    .next()
+                    .is_some_and(|code| code.eq_ignore_ascii_case("zh"))
+                {
+                    Language::Chinese
+                } else {
+                    Language::English
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct LanguageSettings {
+    pub preference: LanguagePreference,
+    pub effective: Language,
+}
+
 /// Translate an app-owned key. Unknown technical messages remain readable.
 pub fn translate(language: Language, source: &str) -> &str {
     if language == Language::Chinese {
@@ -428,6 +475,7 @@ pub fn translate(language: Language, source: &str) -> &str {
         "剪切" => "Cut",
         "全选" => "Select all",
         "语言" => "Language",
+        "跟随系统" => "System default",
         "界面语言" => "Interface language",
         "立即保存，无需重启。" => "Saved immediately. No restart needed.",
         "正在保存语言…" => "Saving language…",
@@ -476,5 +524,22 @@ pub fn translate(language: Language, source: &str) -> &str {
         }
         "同步状态暂时不可用。" => "Sync status is temporarily unavailable.",
         _ => source,
+    }
+}
+
+#[cfg(test)]
+mod language_tests {
+    use super::*;
+    #[test]
+    fn follows_the_primary_system_language_and_keeps_manual_overrides() {
+        assert_eq!(LanguagePreference::default(), LanguagePreference::System);
+        for tag in ["zh", "zh-CN", "zh-Hans-CN", "zh-Hant-TW", "ZH_hk"] {
+            assert_eq!(LanguagePreference::System.resolve(tag), Language::Chinese);
+            assert_eq!(LanguagePreference::English.resolve(tag), Language::English);
+        }
+        for tag in ["en", "en-US", "en-GB", "ja-JP", "fr-FR", "", "zho", "en-zh"] {
+            assert_eq!(LanguagePreference::System.resolve(tag), Language::English);
+            assert_eq!(LanguagePreference::Chinese.resolve(tag), Language::Chinese);
+        }
     }
 }

@@ -8,7 +8,13 @@ thread_local! {
 }
 
 pub fn init() {
-    LANGUAGE.with(|value| value.set(Some(RwSignal::new(Language::default()))));
+    let initial = paste_domain::LanguagePreference::System.resolve(
+        &web_sys::window()
+            .and_then(|window| window.navigator().language())
+            .unwrap_or_else(|| "en".into()),
+    );
+    LANGUAGE.with(|value| value.set(Some(RwSignal::new(initial))));
+    set_language(initial);
 }
 pub fn language() -> Language {
     LANGUAGE.with(|value| value.get().map(|signal| signal.get()).unwrap_or_default())

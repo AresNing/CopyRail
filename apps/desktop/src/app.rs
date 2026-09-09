@@ -705,19 +705,23 @@ pub fn App() -> impl IntoView {
             return;
         }
         let next = match event_target_value(&event).as_str() {
-            "en" => paste_domain::Language::English,
-            "zh-CN" => paste_domain::Language::Chinese,
+            "system" => paste_domain::LanguagePreference::System,
+            "en" => paste_domain::LanguagePreference::English,
+            "zh-CN" => paste_domain::LanguagePreference::Chinese,
             _ => return,
         };
         language_saving.set(true);
         language_error.set(false);
         spawn_local(async move {
-            match invoke::<paste_domain::Language>("set_language", &CommandArgs { request: next })
-                .await
+            match invoke::<paste_domain::LanguageSettings>(
+                "set_language",
+                &CommandArgs { request: next },
+            )
+            .await
             {
                 Ok(saved) => {
-                    set_desktop_preferences.update(|draft| draft.language = saved);
-                    crate::i18n::set_language(saved);
+                    set_desktop_preferences.update(|draft| draft.language = saved.preference);
+                    crate::i18n::set_language(saved.effective);
                 }
                 Err(_) => language_error.set(true),
             }
@@ -950,6 +954,12 @@ pub fn App() -> impl IntoView {
     });
 
     spawn_local(async move {
+        if let Ok(settings) =
+            invoke::<paste_domain::LanguageSettings>("get_language_settings", &EmptyArgs {}).await
+        {
+            crate::i18n::set_language(settings.effective);
+            set_desktop_preferences.update(|draft| draft.language = settings.preference);
+        }
         refresh_shortcut.run(());
         if let Ok(preferences) =
             invoke::<CapturePreferences>("get_capture_preferences", &EmptyArgs {}).await
@@ -961,9 +971,14 @@ pub fn App() -> impl IntoView {
         if let Ok(preferences) =
             invoke::<DesktopPreferences>("get_desktop_preferences", &EmptyArgs {}).await
         {
-            crate::i18n::set_language(preferences.language);
             set_desktop_preferences.set(preferences);
             set_applied_compact.set(preferences.compact_mode);
+            if let Ok(settings) =
+                invoke::<paste_domain::LanguageSettings>("get_language_settings", &EmptyArgs {})
+                    .await
+            {
+                crate::i18n::set_language(settings.effective);
+            }
         }
         if let Ok(current) =
             invoke::<PermissionStatus>("get_permission_status", &EmptyArgs {}).await
@@ -2477,9 +2492,16 @@ pub fn App() -> impl IntoView {
                     if let Ok(preferences) =
                         invoke::<DesktopPreferences>("get_desktop_preferences", &EmptyArgs {}).await
                     {
-                        crate::i18n::set_language(preferences.language);
                         set_desktop_preferences.set(preferences);
                         set_applied_compact.set(preferences.compact_mode);
+                        if let Ok(settings) = invoke::<paste_domain::LanguageSettings>(
+                            "get_language_settings",
+                            &EmptyArgs {},
+                        )
+                        .await
+                        {
+                            crate::i18n::set_language(settings.effective);
+                        }
                     }
                     set_settings_open.set(false);
                     set_notice.set(Some(localized_format!(
@@ -2777,9 +2799,16 @@ pub fn App() -> impl IntoView {
                             set_retention_items
                                 .set(optional_number(saved_capture.retention.max_unpinned_items));
                             set_excluded_apps.set(saved_capture.excluded_bundle_ids.join("\n"));
-                            crate::i18n::set_language(saved_desktop.language);
                             set_desktop_preferences.set(saved_desktop);
                             set_applied_compact.set(saved_desktop.compact_mode);
+                            if let Ok(settings) = invoke::<paste_domain::LanguageSettings>(
+                                "get_language_settings",
+                                &EmptyArgs {},
+                            )
+                            .await
+                            {
+                                crate::i18n::set_language(settings.effective);
+                            }
                             set_settings_open.set(false);
                             set_error.set(None);
                         }
@@ -4365,8 +4394,9 @@ pub fn App() -> impl IntoView {
                     <label class="language-setting">
                         <span><strong>{move || t("语言")}</strong><small>{move || if language_saving.get() { t("正在保存语言…") } else { t("立即保存，无需重启。") }}</small></span>
                         <select class="language-select" aria-label=move || t("界面语言")
-                            prop:value=move || { language_saving.get(); crate::i18n::language().code() }
+                            prop:value=move || { language_saving.get(); desktop_preferences.get().language.code() }
                             disabled=move || language_saving.get() || settings_saving.get() on:change=change_language>
+                            <option value="system">{move || t("跟随系统")}</option>
                             <option value="zh-CN">"简体中文"</option>
                             <option value="en">"English"</option>
                         </select>

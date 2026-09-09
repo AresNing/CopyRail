@@ -1633,8 +1633,8 @@ impl SqliteStore {
     /// preferences cannot be overwritten by a UI draft or a concurrent update.
     pub fn save_language(
         &self,
-        language: paste_domain::Language,
-    ) -> Result<paste_domain::Language, StorageError> {
+        language: paste_domain::LanguagePreference,
+    ) -> Result<paste_domain::LanguagePreference, StorageError> {
         let connection = self.lock()?;
         let json = connection
             .query_row(

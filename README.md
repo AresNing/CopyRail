@@ -17,7 +17,7 @@ CopyRail keeps the things you copy in a searchable card rail. Find a snippet, pr
 - **Preview without losing your place.** Open a compact reader above the card rail and move between items with the arrow keys.
 - **Reuse more than text.** Work with plain text, HTML, links, images, files, PDFs and colors.
 - **Paste one item at a time.** Add cards to a paste queue for filling several fields in a chosen order. Plain-text output is available too.
-- **Choose your language.** Switch between English and Simplified Chinese in Settings → General → Language. The choice is saved immediately and restored on launch.
+- **Choose your language.** By default, CopyRail follows your system language: Chinese uses Simplified Chinese; other languages use English. Choose System default, English or Simplified Chinese in Settings → General → Language. Manual choices are saved immediately and preserved on launch.
 - **Choose what stays.** Pause capture, exclude apps, set retention limits, and export or restore a local backup.
 - **Work from the keyboard.** Open the rail with `⇧⌘V`, navigate with the arrow keys, preview with `Space`, and copy with `⌘C`.
 
@@ -29,7 +29,7 @@ Read a longer snippet while keeping your clipboard history visible below it.
 
 ### Settings with clear sections
 
-General, Shortcuts, History & privacy, Backup and Advanced keep everyday controls together. Capture controls and keyboard instructions live in Settings. Change the interface language in **General → Language**; it takes effect immediately without saving other preference drafts. Clipboard content and pinboard names stay as you wrote them.
+General, Shortcuts, History & privacy, Backup and Advanced keep everyday controls together. Capture controls and keyboard instructions live in Settings. Change the interface language in **General → Language**; it takes effect immediately without saving other preference drafts. System default reads the macOS preferred language at launch; change back to it at any time to remove a manual override. Clipboard content and pinboard names stay as you wrote them.
 
 ![CopyRail General settings with the English language option](docs/images/language-dark.png)
 
@@ -48,7 +48,7 @@ Hiding the rail leaves capture running. Pause capture in Settings or the menu ba
 
 ## Status and platform
 
-CopyRail is an **early source MVP**, developed and tested on Apple Silicon macOS. The latest local iteration is **0.1.0-local-beta.14**. There is no Developer ID-signed, notarized binary release yet.
+CopyRail is an **early source MVP**, developed and tested on Apple Silicon macOS. The latest local iteration is **0.1.0-local-beta.15**. There is no Developer ID-signed, notarized binary release yet.
 
 The implemented features above are not a claim of complete daily-use validation. Full cross-app paste and drag/drop coverage, complex rich-text fidelity, full-screen Spaces, multiple displays and VoiceOver still have open acceptance items. Shared pinboards, multi-device sync and mobile clients are outside this MVP. See the [verification record](docs/verification.md) for the tested scope.
 

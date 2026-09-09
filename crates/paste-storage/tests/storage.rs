@@ -1496,7 +1496,7 @@ fn persists_desktop_preferences() {
     );
 
     let expected = DesktopPreferences {
-        language: paste_domain::Language::Chinese,
+        language: paste_domain::LanguagePreference::Chinese,
         launch_at_login: true,
         screen_share_protection: true,
         compact_mode: true,
@@ -1785,19 +1785,19 @@ fn combines_source_device_date_filters_and_reports_facets() {
 
 #[test]
 fn language_upgrade_roundtrip_isolated_update_and_failed_save() {
-    use paste_domain::Language;
+    use paste_domain::LanguagePreference as Language;
     let directory = tempfile::tempdir().expect("temporary store");
     let path = directory.path().join("language.db");
     let store = SqliteStore::open(&path).expect("open");
     let sql = rusqlite::Connection::open(&path).expect("fixture connection");
-    // Existing installations have no language key. Keep their Chinese UI and options.
+    // Existing installations with no explicit language now follow the system.
     sql.execute(
         "INSERT INTO settings (key, value, updated_at_ms) VALUES ('desktop_preferences', ?1, 0)",
         [r#"{"launch_at_login":true,"screen_share_protection":true,"compact_mode":true}"#],
     )
     .expect("legacy preferences");
     let previous = store.load_desktop_preferences().expect("legacy defaults");
-    assert_eq!(previous.language, Language::Chinese);
+    assert_eq!(previous.language, Language::System);
     let capture = store
         .load_capture_preferences()
         .expect("capture preferences");
@@ -1830,7 +1830,11 @@ fn language_upgrade_roundtrip_isolated_update_and_failed_save() {
             .language,
         Language::English
     );
-    for (wire, language) in [("en", Language::English), ("zh-CN", Language::Chinese)] {
+    for (wire, language) in [
+        ("system", Language::System),
+        ("en", Language::English),
+        ("zh-CN", Language::Chinese),
+    ] {
         assert_eq!(
             serde_json::from_value::<Language>(serde_json::json!(wire)).expect("language"),
             language
