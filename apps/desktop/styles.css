@@ -17,7 +17,9 @@
   --surface: rgba(250, 250, 250, 0.98);
   --solid-surface: #fafafa;
   --solid-shell: #ededed;
-  --surface-border: rgba(40, 30, 20, 0.16);
+  --surface-border: rgba(0, 0, 0, 0.08);
+  --workspace-content: #ffffff;
+  --workspace-group: #f5f5f5;
   --subtle-surface: rgba(0, 0, 0, 0.05);
   --control-text: #40352c;
   --action-text: #6b3a00;
@@ -133,7 +135,7 @@ button:disabled {
   align-items: center;
   gap: 7px 12px;
   padding: 8px 18px 3px;
-  border-bottom: 1px solid var(--surface-border);
+  border-bottom: 0;
 }
 
 .search-wrap {
@@ -144,7 +146,7 @@ button:disabled {
   padding: 0 9px;
   border-radius: 9px;
   background: rgba(255, 255, 255, 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.34);
+  border: 1px solid transparent;
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.04);
 }
 
@@ -1123,7 +1125,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   scroll-snap-type: x proximity;
   scrollbar-width: none;
   padding: 3px 2px 5px;
-  border-bottom: 1px solid var(--surface-border);
+  border-bottom: 0;
 }
 
 .card-track::-webkit-scrollbar {
@@ -1697,7 +1699,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   justify-content: space-between;
   gap: 12px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--surface-border);
+  border-bottom: 0;
 }
 
 .preview-overlay > header div {
@@ -1739,7 +1741,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   display: grid;
   place-items: center;
   overflow: auto;
-  background: var(--card-surface);
+  background: var(--workspace-content);
 }
 
 .preview-image {
@@ -1797,7 +1799,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   justify-content: space-between;
   gap: 10px;
   padding: 4px 10px;
-  border-top: 1px solid var(--surface-border);
+  border-top: 0;
 }
 
 .preview-actions {
@@ -1973,7 +1975,9 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
     --surface: rgba(40, 40, 40, 0.98);
     --solid-surface: #282828;
     --solid-shell: #202020;
-    --surface-border: rgba(255, 255, 255, 0.22);
+    --surface-border: rgba(255, 255, 255, 0.08);
+    --workspace-content: #191919;
+    --workspace-group: #242424;
     --subtle-surface: rgba(255, 255, 255, 0.1);
     --control-text: #f2ebe5;
     --action-text: #ffcf8f;
@@ -2132,7 +2136,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   bottom: 0;
   width: 100%;
   height: var(--dock-height);
-  border: 1px solid var(--surface-border);
+  border: 0;
   border-radius: 14px;
   background: var(--solid-shell);
   overflow: hidden;
@@ -2145,7 +2149,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   transform: translateX(-50%);
   width: min(720px, calc(100% - 24px));
   max-height: 360px;
-  border: 1px solid var(--surface-border);
+  border: 0;
   border-radius: 14px;
   box-shadow: none;
   background: var(--solid-shell);
@@ -2170,24 +2174,24 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   visibility: visible;
   pointer-events: auto;
 }
-.settings-popover > header { padding: 12px 18px; border-bottom: 1px solid var(--surface-border); }
+.settings-popover > header { padding: 14px 18px 10px; border-bottom: 0; }
 .settings-layout { min-height: 0; display: grid; grid-template-columns: 136px minmax(0, 1fr); }
-.settings-nav { padding: 12px 8px; border-right: 1px solid var(--surface-border); display: flex; flex-direction: column; gap: 4px; }
+.settings-nav { padding: 12px 8px; border-right: 0; background: var(--solid-shell); display: flex; flex-direction: column; gap: 4px; }
 .settings-nav button { padding: 9px 12px; text-align: left; border: 0; border-radius: 7px; color: var(--muted); background: transparent; font-size: 12px; }
 .settings-nav button.active { color: var(--text); background: var(--subtle-surface); font-weight: 600; }
-.settings-content { min-height: 0; overflow: auto; padding: 14px 22px 20px; }
+.settings-content { min-height: 0; overflow: auto; padding: 18px 22px 20px; background: var(--workspace-content); border-radius: 12px 0 0 12px; }
 .settings-page[hidden] { display: none; }
 .settings-page h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .settings-page .settings-description { margin: 4px 0 16px; font-size: 11px; }
-.settings-page > label { padding: 11px 0; margin: 0; border-bottom: 1px solid var(--surface-border); font-size: 12px; grid-template-columns: minmax(0, 1fr) 110px; align-items: center; }
+.settings-page > label { padding: 12px 0; margin: 0; border-bottom: 0; font-size: 12px; grid-template-columns: minmax(0, 1fr) 110px; align-items: center; }
 .settings-page > .excluded-apps { grid-template-columns: 1fr; gap: 8px; }
 .settings-page > .toggle-setting { display: flex; justify-content: space-between; }
 .settings-page .toggle-setting input { accent-color: var(--selected); }
-.settings-page > section { margin: 14px 0 0; padding: 12px; border: 1px solid var(--surface-border); border-radius: 9px; }
+.settings-page > section { margin: 14px 0 0; padding: 14px; border: 0; border-radius: 10px; background: var(--workspace-group); }
 .settings-page .permission-help { font-size: 11px; line-height: 1.6; }
 .permission-troubleshooting { margin-top: 10px; font-size: 11px; color: var(--muted); }
 .permission-troubleshooting summary { cursor: pointer; }
-.settings-popover > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 18px; border-top: 1px solid var(--surface-border); }
+.settings-popover > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 18px; border-top: 0; }
 .settings-popover > footer > span { font-size: 10px; color: var(--muted); }
 .settings-popover .save-settings { width: auto; margin: 0; padding: 7px 16px; }
 @media (max-width: 600px) {
@@ -2211,11 +2215,11 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 .pinboard-color-field input[type="color"] { width: 44px; cursor: pointer; }
 .pinboard-editor-fields input:focus-visible, .pinboard-creator input:focus-visible { outline: 1px solid var(--selected); outline-offset: 2px; }
 .capture-status { border: 0; border-radius: 6px; padding: 5px 8px; color: var(--muted); background: var(--tab-selected); font-size: 10px; white-space: nowrap; }
-.capture-settings, .queue-help { padding: 12px 0; border-bottom: 1px solid var(--surface-border); }
+.capture-settings, .queue-help { padding: 12px 0; border-bottom: 0; }
 .capture-settings p, .queue-help p { margin: 6px 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .capture-settings .status-button { margin-top: 4px; background: var(--tab-selected); }
 .keyboard-reference { margin: 14px 0 0; font-size: 11px; }
-.keyboard-reference > div { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--surface-border); }
+.keyboard-reference > div { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 0; border-bottom: 0; }
 .keyboard-reference dd { margin: 0; white-space: nowrap; }
 .keyboard-reference kbd { color: var(--muted); font: inherit; }
 .pinboard-editor, .pinboard-creator { max-height: calc(100% - 50px); overflow-y: auto; }
