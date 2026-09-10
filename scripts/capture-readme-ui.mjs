@@ -1,4 +1,4 @@
-// Production English locale and 50% transparency, synthetic backdrop/content, isolated IPC.
+// Production English locale and 0% transparency, synthetic backdrop/content, isolated IPC.
 // This is a browser screenshot check, not native acceptance.
 import assert from 'node:assert/strict';
 import {readFile,readdir,mkdir,writeFile} from 'node:fs/promises';
@@ -13,17 +13,17 @@ await withCompiledUiTest(async({page,evaluate,waitFor,fixture,artifacts,browser}
   const frames=[];
   const size=(height)=>page('Emulation.setDeviceMetricsOverride',{width:1440,height,deviceScaleFactor:2,mobile:false});
   const capture=async(name,selector)=>{
-    assert.equal(await evaluate(`localStorage.getItem('fixture-transparency')`),'50');
-    assert.equal(await evaluate(`getComputedStyle(document.querySelector('.paste-shell')).getPropertyValue('--background-opacity').trim()`),'0.5');
+    assert.equal(await evaluate(`localStorage.getItem('fixture-transparency')`),'0');
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('.paste-shell')).getPropertyValue('--background-opacity').trim()`),'1');
     const surface=selector??(name==='preview-dark.png'?'.preview-overlay':'.dock-surface');
     const surfaceColor=await evaluate(`getComputedStyle(document.querySelector(${JSON.stringify(surface)})).backgroundColor`);
-    assert.match(surfaceColor,/^rgba\([^)]*,\s*0\.5\)$/,'demo surface must have 50% background opacity');
+    assert.match(surfaceColor,/^rgb\(\d+,\s*\d+,\s*\d+\)$/,'demo surface must be fully opaque');
     const untranslated=await evaluate(`(()=>{const scope=document.querySelector(${JSON.stringify(selector??'.paste-shell')});return [...scope.querySelectorAll('*')].filter(e=>e.checkVisibility() && !e.closest('[aria-hidden="true"],.sr-only,option')).flatMap(e=>[...e.childNodes].filter(n=>n.nodeType===3 && /[\\u3400-\\u9fff]/.test(n.data)).map(n=>n.data))})()`);
     assert.deepEqual(untranslated,[],'visible screenshot copy must be English');
     let clip;
     if(selector) clip=await evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,scale:1}})()`);
     const image=await page('Page.captureScreenshot',{format:'png',...(clip?{clip}:{})});
-    await writeFile(new URL(name,out),Buffer.from(image.data,'base64'));frames.push({name,clip:clip??null,surfaceColor,backgroundTransparency:50});
+    await writeFile(new URL(name,out),Buffer.from(image.data,'base64'));frames.push({name,clip:clip??null,surfaceColor,backgroundTransparency:0});
   };
   await size(248);
   await page('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:'dark'}]});
@@ -37,8 +37,8 @@ await withCompiledUiTest(async({page,evaluate,waitFor,fixture,artifacts,browser}
   await waitFor(`document.querySelector('.workspace-ready')`);
   await evaluate(`(()=>{const select=document.querySelector('.language-select');select.value='en';select.dispatchEvent(new Event('change',{bubbles:true}))})()`);
   await waitFor(`document.documentElement.lang==='en' && !document.querySelector('.language-select').disabled`);
-  await evaluate(`(()=>{const slider=document.querySelector('.appearance-slider input');slider.value='50';slider.dispatchEvent(new Event('input',{bubbles:true}))})()`);
-  await waitFor(`localStorage.getItem('fixture-transparency')==='50' && document.querySelector('.appearance-slider input').value==='50'`);
+  await evaluate(`(()=>{const slider=document.querySelector('.appearance-slider input');slider.value='0';slider.dispatchEvent(new Event('input',{bubbles:true}))})()`);
+  await waitFor(`localStorage.getItem('fixture-transparency')==='0' && document.querySelector('.appearance-slider input').value==='0'`);
   await capture('language-dark.png','.settings-popover');
   await evaluate(`document.querySelector('.settings-popover header button').click()`);
   await waitFor(`!window.previewFrameFixture.open`);await size(248);
@@ -58,7 +58,7 @@ await withCompiledUiTest(async({page,evaluate,waitFor,fixture,artifacts,browser}
   await capture('settings-dark.png','.settings-popover');
   assert.deepEqual(await fingerprint(),assets,'documentation rendering never modifies compiled application assets');
   assert.equal(await evaluate(`window.previewEditFixture.calls.length`),0);
-  const report={result:'passed',browser,assetSha256:assets,frames,syntheticData:true,syntheticBackdrop:true,backgroundTransparency:50,productionTransparencySetting:true,productionLanguageSetting:true,nativeEndToEnd:false,systemClipboardUsed:false};
+  const report={result:'passed',browser,assetSha256:assets,frames,syntheticData:true,syntheticBackdrop:true,backgroundTransparency:0,productionTransparencySetting:true,productionLanguageSetting:true,nativeEndToEnd:false,systemClipboardUsed:false};
   await writeFile(join(artifacts,'readme-screenshots-report.json'),JSON.stringify(report,null,2)+'\n');
   console.log(JSON.stringify({result:report.result,frames}));
 });
