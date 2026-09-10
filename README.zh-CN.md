@@ -52,7 +52,7 @@ CopyRail 把复制过的内容保存在可搜索的卡片轨道中。查找文�
 
 ## 当前状态与平台
 
-CopyRail 是**早期源码 MVP**，主要在 Apple Silicon macOS 上开发和测试。当前本地迭代为 **0.1.0-local-beta.19**，尚未提供经过 Developer ID 签名和公证的二进制发行版。
+CopyRail 是**早期源码 MVP**，主要在 Apple Silicon macOS 上开发和测试。当前本地迭代为 **0.1.0-local-beta.20**，尚未提供经过 Developer ID 签名和公证的二进制发行版。
 
 以上功能已经实现，但不代表完成了所有日常使用场景的验收。跨应用粘贴和拖放、复杂富文本保真、全屏 Spaces、多显示器以及 VoiceOver 仍有待验收项目。共享分类、多设备同步和移动客户端不在本次 MVP 承诺范围内。具体检查范围见[验证记录](docs/verification.md)。
 

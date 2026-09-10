@@ -627,6 +627,17 @@ pub fn App() -> impl IntoView {
             }
         });
     });
+    // Every webview needs authoritative worker confirmations, including the
+    // detached settings panel. Do not couple status to history loading, which
+    // is deliberately skipped in that panel and suspended during rail gestures.
+    spawn_local(async move {
+        loop {
+            if let Ok(current) = invoke::<CaptureStatus>("capture_status", &EmptyArgs {}).await {
+                apply_capture_status.run(current);
+            }
+            TimeoutFuture::new(500).await;
+        }
+    });
     let pending_capture_control = move || {
         status
             .get()
@@ -1334,9 +1345,6 @@ pub fn App() -> impl IntoView {
             }
             if let Ok(facets) = invoke::<SearchFacets>("list_search_facets", &EmptyArgs {}).await {
                 set_search_facets.set(facets);
-            }
-            if let Ok(current) = invoke::<CaptureStatus>("capture_status", &EmptyArgs {}).await {
-                apply_capture_status.run(current);
             }
             // Keep background refresh inexpensive, but wake promptly for typing,
             // filter changes, board navigation, and history-position jumps.

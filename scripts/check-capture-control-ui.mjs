@@ -18,16 +18,23 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, screenshot, 
     await page('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' });
     await page('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
   };
-  for (const compact of [true, false]) for (const theme of ['dark', 'light']) {
+  for (const role of ['embedded', 'workspace']) for (const compact of [true, false]) for (const theme of ['dark', 'light']) {
     await page('Emulation.setDeviceMetricsOverride', { width: 1440, height: compact ? 148 : 248, deviceScaleFactor: 2, mobile: false });
     await page('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] });
-    await page('Page.navigate', { url: `${fixture}/?fixture=pinboards${compact ? '&compact=1' : ''}` });
-    await waitFor(`document.querySelectorAll('.clip-card').length === 5`);
-    assert.equal(await evaluate(`!!document.querySelector('.toolbar .capture-status, .toolbar .status-button, .shortcut-hint, .rail-guide')`), false, 'ordinary main UI has no capture control or keyboard hints');
-    await evaluate(`document.querySelector('.settings-button').click()`);
-    await page('Emulation.setDeviceMetricsOverride', {width:1440,height:compact ? 508 : 608,deviceScaleFactor:2,mobile:false});
-    await waitFor(`document.querySelector('.workspace-ready')`);
-    await evaluate(`document.querySelectorAll('.settings-nav button')[2].click()`);
+    await page('Page.navigate', { url: `${fixture}/?fixture=pinboards${compact ? '&compact=1' : ''}${role === 'workspace' ? '&window_role=workspace' : ''}` });
+    if (role === 'workspace') {
+      await page('Emulation.setDeviceMetricsOverride', {width:760,height:348,deviceScaleFactor:2,mobile:false});
+      await waitFor(`document.querySelector('.auxiliary-workspace')`);
+      await evaluate(`(()=>{const w=window.workspaceFixture;w.state={revision:w.state.revision+1,content:{kind:'settings',tab:'history'}};window.dragEventFixture.emit('pasters-workspace',w.state)})()`);
+      await waitFor(`window.workspaceFixture.presented && document.querySelector('.capture-settings')`);
+    } else {
+      await waitFor(`document.querySelectorAll('.clip-card').length === 5`);
+      assert.equal(await evaluate(`!!document.querySelector('.toolbar .capture-status, .toolbar .status-button, .shortcut-hint, .rail-guide')`), false, 'ordinary main UI has no capture control or keyboard hints');
+      await evaluate(`document.querySelector('.settings-button').click()`);
+      await page('Emulation.setDeviceMetricsOverride', {width:1440,height:compact ? 508 : 608,deviceScaleFactor:2,mobile:false});
+      await waitFor(`document.querySelector('.workspace-ready')`);
+      await evaluate(`document.querySelectorAll('.settings-nav button')[2].click()`);
+    }
     await waitFor(`document.querySelector('.capture-settings .status-button')`);
     await evaluate(`(() => {
       const invoke = window.__TAURI__.core.invoke;
@@ -67,9 +74,9 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, screenshot, 
     assert.ok(pending.text.includes('正在暂停'), 'older status cannot erase the newer pending request');
     assert.equal(pending.busy, 'true'); assert.equal(pending.disabled, 'true');
     assert.equal(pending.sameButton, true); assert.equal(pending.focused, true);
-    assert.equal(pending.pauses, 1); assert.equal(pending.restores, 0); assert.equal(pending.count, 5);
+    assert.equal(pending.pauses, 1); assert.equal(pending.restores, 0); assert.equal(pending.count, role === 'workspace' ? 0 : 5);
     assert.ok(pending.left >= 0 && pending.right <= pending.width && pending.bottom <= pending.height);
-    await screenshot(`capture-control-pending-${compact ? 'compact' : 'expanded'}-${theme}.png`);
+    await screenshot(`capture-control-pending-${role}-${compact ? 'compact' : 'expanded'}-${theme}.png`);
     await evaluate(`Object.assign(window.captureControlFixture.state, { paused: true, controlPending: null, revision: 12 })`);
     await waitFor(`document.querySelector('.status-button.paused')?.textContent.includes('点击恢复')`);
     assert.equal(await evaluate(`document.activeElement === window.captureControlButton && window.captureControlButton === document.querySelector('.status-button')`), true);
@@ -89,11 +96,23 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, screenshot, 
     await waitFor(`window.captureControlFixture.pauses === 2 && document.querySelector('.status-button[aria-busy="false"]')`);
     assert.equal(await evaluate(`!!document.querySelector('.status-button.paused')`), false, 'rejected request must not claim paused');
     assert.equal(await evaluate(`window.captureControlFixture.restores`), 0, 'toolbar Return must not paste a card');
-    await evaluate(`Object.assign(window.captureControlFixture.state, { isolated: true, paused: true, revision: 17 })`);
+    // A menu-bar pause and timed/external resume have no local command response.
+    await evaluate(`Object.assign(window.captureControlFixture.state, { paused:true, controlPending:null, revision:20 })`);
+    await waitFor(`document.querySelector('.status-button.paused')`);
+    if (role === 'workspace') {
+      await evaluate(`window.__TAURI__.core.invoke('dismiss_workspace',{})`);
+      await waitFor(`window.workspaceFixture.state.content.kind==='closed'`);
+    }
+    await evaluate(`Object.assign(window.captureControlFixture.state, { paused:false, controlPending:null, revision:21 })`);
+    if (role === 'workspace') {
+      await evaluate(`(()=>{const w=window.workspaceFixture;w.state={revision:w.state.revision+1,content:{kind:'settings',tab:'history'}};window.dragEventFixture.emit('pasters-workspace',w.state)})()`);
+    }
+    await waitFor(`document.querySelector('.status-button[aria-busy="false"]')?.textContent.includes('暂停 15 分钟')`);
+    await evaluate(`Object.assign(window.captureControlFixture.state, { isolated: true, paused: true, revision: 22 })`);
     await waitFor(`document.querySelector('.native-test-badge') && !document.querySelector('.status-button')`);
     await evaluate(`window.captureControlButton.click()`);
     assert.equal(await evaluate(`window.captureControlFixture.pauses`), 2, 'even a stale detached control cannot request real capture in isolation');
-    observations.push({ compact, theme, pending, checks: ['pending is not confirmed pause', 'stale status rejected', 'keyboard focus and element retained', 'duplicate controls and accidental paste rejected', 'resume/settings confirmation', 'IPC failure is not success', 'isolation protected'] });
+    observations.push({ role, compact, theme, pending, checks: ['pending is not confirmed pause', 'stale status rejected', 'keyboard focus and element retained', 'duplicate controls and accidental paste rejected', 'resume/settings confirmation', 'IPC failure is not success', 'isolation protected'] });
   }
   assert.deepEqual(await fingerprint(), assets);
   const report = { result: 'passed', browser, nativeEndToEnd: false, systemClipboardUsed: false, assetSha256: assets, observations };

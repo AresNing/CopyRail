@@ -21,12 +21,12 @@
   --workspace-content: #ffffff;
   --workspace-group: #f5f5f5;
   --subtle-surface: rgba(0, 0, 0, 0.05);
-  --control-text: #40352c;
-  --action-text: #6b3a00;
-  --action-surface: rgba(255, 159, 10, 0.16);
-  --action-hover: rgba(255, 159, 10, 0.26);
-  --primary-text: #412200;
-  --primary-surface: #ffad3d;
+  --control-text: #303030;
+  --action-text: #333333;
+  --action-surface: #e2e2e2;
+  --action-hover: #d5d5d5;
+  --primary-text: #ffffff;
+  --primary-surface: #262626;
   --danger-text: #a42b22;
   --success-text: #1d6536;
 }
@@ -651,7 +651,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 }
 
 .pin-menu button:hover {
-  background: rgba(255, 159, 10, 0.13);
+  background: var(--action-hover);
 }
 
 .pinboard-creator input,
@@ -1979,8 +1979,12 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
     --workspace-content: #191919;
     --workspace-group: #242424;
     --subtle-surface: rgba(255, 255, 255, 0.1);
-    --control-text: #f2ebe5;
-    --action-text: #ffcf8f;
+    --control-text: #eeeeee;
+    --action-text: #eeeeee;
+    --action-surface: #373737;
+    --action-hover: #444444;
+    --primary-text: #202020;
+    --primary-surface: #ededed;
     --danger-text: #ffb5ae;
     --success-text: #a6e8b8;
   }

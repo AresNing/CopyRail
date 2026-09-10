@@ -83,6 +83,13 @@ export async function withCompiledUiTest(run) {
       child.once('exit', resolve); child.kill('SIGTERM');
       setTimeout(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); }, 2000).unref();
     })));
+    // Chromium descendants can inherit the child's output pipes. Once the
+    // owned process has exited, close our readers so those inherited handles
+    // cannot keep an otherwise completed verifier alive.
+    for (const child of children) {
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+    }
     await rm(profile, { recursive: true, force: true });
   }
 }
