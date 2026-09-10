@@ -1,6 +1,22 @@
-# MVP verification
+# Release and verification record
 
-Snapshot: **2026-09-08**, source release **v0.1.0-mvp.1**. Platform checked locally: Apple Silicon macOS, Rust 1.98.0, Trunk 0.21.14. This record separates automated checks from native acceptance and distribution readiness.
+Current release: **1.0.0 (2026-09-10)**. Earlier dated entries are historical snapshots. This record separates automated checks from native acceptance and distribution readiness.
+
+## CopyRail 1.0.0 downloadable release (2026-09-10)
+
+Version 1.0.0 promotes the current feature set to the first downloadable release. All eight workspace crates, Cargo.lock and the Tauri bundle version are 1.0.0. The application identifier and local storage/backup formats are unchanged. Public builds use optimized Rust/WASM, disable the experimental CloudKit transport, and use an empty entitlement file rather than requesting iCloud access. The native binary is arm64 with a macOS 13.0 deployment target. Intel installers are not supplied; native acceptance below was performed on macOS 26.5.1, not every earlier deployment target.
+
+The release contains `CopyRail_1.0.0_aarch64.dmg`, `CopyRail_1.0.0_aarch64.zip`, `SHA256SUMS`, `RELEASE_MANIFEST.json` and `CopyRail_1.0.0_third-party-sources.zip`. DMG and ZIP contain the identical application, installation guide and public license notices. The five unmodified MPL package archives were checked against Cargo.lock before inclusion. The source-availability and notice files are described in THIRD_PARTY_NOTICES.md. No clipboard data, personal settings, internal evidence or development logs enter the downloadable payloads.
+
+Validation: **370 Rust tests passed, 4 ignored**, formatting, strict host/WASM Clippy and frontend build passed; **16 artifact-maintenance tests passed**, including stable-version ordering within the three-version budget. The final optimized frontend passed **11 compiled-UI groups**: autosave, appearance, opening position, detached workspace, visual, language, workspace interactions, capture control, capture status, paste outcome and preview editing. English synthetic README screenshots remain at 100% transparency. The fingerprinted reports match the packaged assets. These browser checks use synthetic IPC. The release executable reports version 1.0.0, debugBuild false and cloudTransportCompiled false; it refuses the debug-only native QA mode. The native executable contains no build-machine home path and its dynamic library paths are system libraries/frameworks.
+
+The DMG checksum verified; a read-only mount and an extracted ZIP were compared against the complete delivery app, including file modes. Native installation copied the verified DMG app to **`/Applications/CopyRail.app`** after beta.23 exited normally. The installed bundle matches both downloads; the single ordinary process is **PID 27328**. Existing history loaded and the prior system language, latest-item opening position, 100% transparency and compact layout were retained. Settings and preview opened/closed successfully, and Settings reported **⇧⌘V registered**. No real cross-app paste was sent, user history was not edited by QA, and no Accessibility, login or system security setting was changed. Global shortcut registration is verified separately from actual event delivery. The panel was hidden after acceptance.
+
+No Developer ID identity was available. The app is **ad-hoc signed, not Apple-notarized**; codesign verification passed and the signed entitlements are empty. The [installation guide](installation.md) explains the first-launch exception using Apple's documented per-app flow. A local installation does not prove a clean-machine, quarantined-download Gatekeeper flow. No system Gatekeeper setting was changed.
+
+The public-source Gitleaks scan found no secrets. A fresh OSV lookup of the unchanged 589 registry versions on 2026-09-10 reports nine unique advisories after alias deduplication: eight unmaintained-package notices and the glib iterator unsoundness advisory. glib is absent from the shipped macOS dependency graph. The pinned Git panel adapter is outside that registry query. This is a known-advisory lookup, not independent security review or a claim of zero findings. Older dated results below remain historical records.
+
+Artifact maintenance retains 1.0.0, beta.23 and beta.22, removing beta.21 and superseded rebuildable outputs while preserving small evidence. The temporary installed beta.23 backup was removed only after its bytes matched the retained beta.23 and the new application passed startup acceptance.
 
 ## README at 100% transparency (2026-09-10)
 

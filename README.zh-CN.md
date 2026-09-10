@@ -4,6 +4,10 @@
 
 **在本机保存、查找和整理复制内容的 macOS 剪贴板工作区。**
 
+**[下载 CopyRail 1.0.0（Apple Silicon）](https://github.com/AresNing/CopyRail/releases/download/v1.0.0/CopyRail_1.0.0_aarch64.dmg)** · [全部发布文件](https://github.com/AresNing/CopyRail/releases/tag/v1.0.0) · [安装说明](docs/installation.md)
+
+需要 macOS 13 或更新版本。安装包采用本地签名，未经 Apple Developer ID 签名和公证，首次打开方式见安装说明。
+
 CopyRail 把复制过的内容保存在可搜索的卡片轨道中。查找文本、预览图片，把常用内容整理到分类（Pinboard），再粘贴回正在使用的应用。软件使用 Rust、Tauri 和 Leptos 构建，历史记录保存在本机 SQLite 数据库中。
 
 ![CopyRail 主界面：测试笔记、链接、插画、颜色和代码](docs/images/clipboard-dark.png)
@@ -53,9 +57,9 @@ CopyRail 把复制过的内容保存在可搜索的卡片轨道中。查找文�
 
 ## 当前状态与平台
 
-CopyRail 是**早期源码 MVP**，主要在 Apple Silicon macOS 上开发和测试。当前本地迭代为 **0.1.0-local-beta.23**，尚未提供经过 Developer ID 签名和公证的二进制发行版。
+CopyRail **1.0.0** 是首个提供下载安装包的 Apple Silicon macOS 版本。DMG 和 ZIP 包含同一个优化构建的应用，并提供 SHA-256 校验值和发布清单；沿用现有本地数据格式与应用身份。
 
-以上功能已经实现，但不代表完成了所有日常使用场景的验收。跨应用粘贴和拖放、复杂富文本保真、全屏 Spaces、多显示器以及 VoiceOver 仍有待验收项目。共享分类、多设备同步和移动客户端不在本次 MVP 承诺范围内。具体检查范围见[验证记录](docs/verification.md)。
+以上功能已经实现，但不代表完成了所有日常使用场景的验收。跨应用粘贴和拖放、复杂富文本保真、全屏 Spaces、多显示器以及 VoiceOver 仍有待验收项目。共享分类、多设备同步和移动客户端不在1.0 版本范围内。具体检查范围见[验证记录](docs/verification.md)。
 
 ## 从源码运行
 
@@ -130,3 +134,7 @@ cargo run -p pasters-desktop --no-default-features --locked -- --native-ui-test
 Copyright 2026 CopyRail contributors。除另有说明外，项目自有代码、文档和原创图形采用 **[Apache-2.0](LICENSE)** 许可证。署名信息见 [NOTICE](NOTICE)，第三方条款见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 早期研究参考过 Paste 等剪贴板工具。CopyRail 目前采用自身的卡片轨道标识和设计基线，是独立项目，与 Paste Team ApS 无隶属或背书关系。本仓库许可证不授予第三方名称、商标或素材的使用权。
+
+## 构建安装包
+
+在 Apple Silicon Mac 安装 Cargo Tauri 和 Python 3.11+ 后，先运行 `./scripts/check.sh`，再运行 `./scripts/build-release.sh`。检查优化构建的前端后，运行 `python3 scripts/package-release.py`，即可在 `output/CopyRail-1.0.0/downloads/` 生成 DMG、ZIP 和校验文件。打包脚本不会安装或发布应用；公共构建关闭实验性 CloudKit，且不申请 iCloud 权限。

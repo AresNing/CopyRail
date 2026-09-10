@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "entitlements": "CopyRail.release.entitlements"
+    }
+  }
+}

@@ -231,3 +231,13 @@ test('sweep validates renamed bundle and prunes only its archived duplicate', as
   assert.equal(protectedPlan.remove.length, 3);
   assert.ok(protectedPlan.remove.every(item => !item.path.startsWith(bundle)));
 });
+
+test('stable releases share the three-version budget and sort after betas of the same version', () => {
+  const names = ['CopyRail-0.1.0-local-beta.23', 'CopyRail-1.0.0-local-beta.10',
+    'CopyRail-1.0.0', 'CopyRail-1.0.1', 'CopyRail-1.10.0', 'CopyRail-1.2.0'];
+  assert.deepEqual([...retainedVersions(names)], ['CopyRail-1.10.0', 'CopyRail-1.2.0', 'CopyRail-1.0.1']);
+  assert.deepEqual([...retainedVersions(names.slice(0, 4), '1.0.0')],
+    ['CopyRail-1.0.0', 'CopyRail-1.0.1', 'CopyRail-1.0.0-local-beta.10']);
+  assert.deepEqual([...retainedVersions(names.slice(0, 3))],
+    ['CopyRail-1.0.0', 'CopyRail-1.0.0-local-beta.10', 'CopyRail-0.1.0-local-beta.23']);
+});

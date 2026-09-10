@@ -6,7 +6,7 @@ import { lstat, mkdir, readdir, readFile, realpath, rm, rmdir } from 'node:fs/pr
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const releasePattern = /^(?:PasteRS|CopyRail)-(\d+)\.(\d+)\.(\d+)-local-beta\.(\d+)$/;
+const releasePattern = /^(?:PasteRS|CopyRail)-(\d+)\.(\d+)\.(\d+)(?:-local-beta\.(\d+))?$/;
 const cachePaths = ['debug', 'release'].flatMap(profile =>
   ['incremental', 'deps', 'build', '.fingerprint', 'examples'].map(name => `target/${profile}/${name}`));
 cachePaths.push('target/wasm32-unknown-unknown/debug', 'target/wasm32-unknown-unknown/release',
@@ -56,8 +56,8 @@ export async function safePath(root, path) {
 }
 
 function newestFirst(a, b) {
-  const av = a.match(releasePattern).slice(1).map(Number);
-  const bv = b.match(releasePattern).slice(1).map(Number);
+  const av = a.match(releasePattern).slice(1).map(value => value === undefined ? Infinity : Number(value));
+  const bv = b.match(releasePattern).slice(1).map(value => value === undefined ? Infinity : Number(value));
   for (let i = 0; i < av.length; i++) if (av[i] !== bv[i]) return bv[i] - av[i];
   return 0;
 }

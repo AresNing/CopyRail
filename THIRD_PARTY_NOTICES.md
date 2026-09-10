@@ -14,9 +14,9 @@ The PDFs contain synthetic test content and a documented synthetic test password
 
 ## Rust dependencies
 
-[docs/dependencies.md](docs/dependencies.md) inventories the registry package versions and declared SPDX license expressions resolved by Cargo.lock. This includes optional, build, test and other-platform dependencies; it is not a list of everything linked into the macOS application. Registry dependencies are fetched from crates.io; the macOS panel adapter is fetched from the pinned Git revision below. Dependency source is not vendored in this release. Their original license and notice files remain applicable.
+[docs/dependencies.md](docs/dependencies.md) inventories the registry package versions and declared SPDX license expressions resolved by Cargo.lock. This includes optional, build, test and other-platform dependencies; it is not a list of everything linked into the macOS application. Registry dependencies are fetched from crates.io; the macOS panel adapter is fetched from the pinned Git revision below. Dependencies are not vendored into this repository; MPL source archives accompany the binary release. Their original license and notice files remain applicable.
 
-Five packages declare MPL-2.0: `cssparser`, `cssparser-macros`, `dtoa-short`, `option-ext` and `selectors`. A distributor of a compiled application must satisfy the applicable dependency terms, including MPL-covered source availability. The source links in the inventory identify the exact upstream versions; they do not replace any redistribution obligations. This MVP release publishes source only.
+Five packages declare MPL-2.0: `cssparser`, `cssparser-macros`, `dtoa-short`, `option-ext` and `selectors`. A distributor of a compiled application must satisfy the applicable dependency terms, including MPL-covered source availability. For version 1.0.0, the DMG and ZIP include upstream license/notice files and an exact-version dependency inventory under `licenses/dependencies/` and `licenses/dependency-inventory.json`. The release also includes `CopyRail_1.0.0_third-party-sources.zip`, containing the checksum-verified, unmodified upstream source archives for these five MPL packages. Each `.crate` file is a gzip-compressed tar archive with its original license notices. No local modifications are made to those sources.
 
 ## macOS panel adapter
 

@@ -4,6 +4,10 @@
 
 **A local-first clipboard workspace for macOS.**
 
+**[Download CopyRail 1.0.0 for Apple Silicon](https://github.com/AresNing/CopyRail/releases/download/v1.0.0/CopyRail_1.0.0_aarch64.dmg)** · [All release files](https://github.com/AresNing/CopyRail/releases/tag/v1.0.0) · [Installation guide](docs/installation.md)
+
+macOS 13+. The download is locally signed, without Apple Developer ID signing or notarization; see the installation guide for first-launch instructions.
+
 CopyRail keeps the things you copy in a searchable card rail. Find a snippet, preview an image, organize reusable content into pinboards, and paste it back into your work. Built with Rust, Tauri and Leptos, it stores history locally in SQLite.
 
 ![CopyRail clipboard rail with sample notes, a link, an illustration, a color and code](docs/images/clipboard-dark.png)
@@ -50,9 +54,9 @@ Hiding the rail leaves capture running. Pause capture in Settings or the menu ba
 
 ## Status and platform
 
-CopyRail is an **early source MVP**, developed and tested on Apple Silicon macOS. The latest local iteration is **0.1.0-local-beta.23**. There is no Developer ID-signed, notarized binary release yet.
+CopyRail **1.0.0** is the first downloadable release for Apple Silicon macOS. DMG and ZIP contain the same optimized application; SHA-256 checksums and a release manifest are included. The application retains the existing local data format and identity.
 
-The implemented features above are not a claim of complete daily-use validation. Full cross-app paste and drag/drop coverage, complex rich-text fidelity, full-screen Spaces, multiple displays and VoiceOver still have open acceptance items. Shared pinboards, multi-device sync and mobile clients are outside this MVP. See the [verification record](docs/verification.md) for the tested scope.
+The implemented features above are not a claim of complete daily-use validation. Full cross-app paste and drag/drop coverage, complex rich-text fidelity, full-screen Spaces, multiple displays and VoiceOver still have open acceptance items. Shared pinboards, multi-device sync and mobile clients are outside version 1.0. See the [verification record](docs/verification.md) for the tested scope.
 
 ## Run from source
 
@@ -69,7 +73,7 @@ cd ../..
 cargo run -p pasters-desktop --no-default-features --locked
 ```
 
-Keep `--no-default-features` for the MVP: it excludes the experimental CloudKit transport. The legacy `scripts/dev.sh` enables default features and is not the recommended MVP entry point.
+Keep `--no-default-features` for version 1.0: it excludes the experimental CloudKit transport. The legacy `scripts/dev.sh` enables default features and is not the recommended entry point.
 
 ## Local data and privacy
 
@@ -117,7 +121,7 @@ Local delivery maintenance keeps three versions in total, including the current 
 | `apps/desktop/src-tauri` | Desktop shell, native windows, preview, editing and MCP |
 | `crates/paste-domain`, `paste-core`, `paste-storage` | Domain types, use cases, SQLite history and search |
 | `crates/paste-platform` | macOS clipboard, permissions and window integration |
-| `crates/paste-sync`, `paste-cloudkit` | Experimental sync components, outside the MVP promise |
+| `crates/paste-sync`, `paste-cloudkit` | Experimental sync components, outside version 1.0 |
 | `scripts` | Build helpers, synthetic UI checks and artifact maintenance |
 
 [Architecture](docs/architecture.md) · [Verification](docs/verification.md) · [Dependencies](docs/dependencies.md)
@@ -127,3 +131,7 @@ Local delivery maintenance keeps three versions in total, including the current 
 Copyright 2026 CopyRail contributors. Project-owned code, documentation and original graphics are licensed under **[Apache-2.0](LICENSE)**, unless otherwise stated. See [NOTICE](NOTICE) for attribution and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party terms.
 
 Early research explored existing clipboard tools, including Paste. CopyRail now uses its own card-and-rail identity and design baseline. It is an independent project and is not affiliated with or endorsed by Paste Team ApS. This repository's license does not grant rights to third-party names, trademarks or assets.
+
+## Build the downloadable release
+
+On an Apple Silicon Mac with Cargo Tauri and Python 3.11+ installed, run `./scripts/check.sh`, then `./scripts/build-release.sh`. Check the optimized frontend, then run `python3 scripts/package-release.py`. The packager validates the version, architecture and build flags, signs locally, and creates DMG, ZIP and checksums under `output/CopyRail-1.0.0/downloads/`. It does not install or publish. Public builds disable experimental CloudKit and do not request iCloud entitlements.
