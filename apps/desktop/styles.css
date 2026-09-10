@@ -2186,7 +2186,46 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 .settings-page > label { padding: 12px 0; margin: 0; border-bottom: 0; font-size: 12px; grid-template-columns: minmax(0, 1fr) 110px; align-items: center; }
 .settings-page > .excluded-apps { grid-template-columns: 1fr; gap: 8px; }
 .settings-page > .toggle-setting { display: flex; justify-content: space-between; }
-.settings-page .toggle-setting input { accent-color: var(--selected); }
+.settings-popover input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 20px;
+  margin: 0;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: #76767b;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+.settings-popover input[type="checkbox"]::before {
+  content: "";
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translateX(0);
+  transition: transform 140ms ease;
+}
+.settings-popover input[type="checkbox"]:checked { background: #3478f6; }
+.settings-popover input[type="checkbox"]:checked::before { transform: translateX(12px); }
+.settings-popover input[type="checkbox"]:focus-visible { outline: 2px solid #3478f6; outline-offset: 3px; }
+.settings-popover input[type="checkbox"]:disabled { opacity: 0.45; cursor: default; }
+@media (prefers-reduced-motion: reduce) {
+  .settings-popover input[type="checkbox"],
+  .settings-popover input[type="checkbox"]::before { transition: none; }
+}
+@media (forced-colors: active) {
+  .settings-popover input[type="checkbox"] { background: ButtonFace; border: 1px solid ButtonText; padding: 1px; }
+  .settings-popover input[type="checkbox"]::before { background: ButtonText; }
+  .settings-popover input[type="checkbox"]:checked { background: Highlight; }
+  .settings-popover input[type="checkbox"]:checked::before { background: HighlightText; }
+  .settings-popover input[type="checkbox"]:focus-visible { outline-color: Highlight; }
+}
 .settings-page > section { margin: 14px 0 0; padding: 14px; border: 0; border-radius: 10px; background: var(--workspace-group); }
 .settings-page .permission-help { font-size: 11px; line-height: 1.6; }
 .permission-troubleshooting { margin-top: 10px; font-size: 11px; color: var(--muted); }

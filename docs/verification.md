@@ -2,6 +2,14 @@
 
 Snapshot: **2026-09-08**, source release **v0.1.0-mvp.1**. Platform checked locally: Apple Silicon macOS, Rust 1.98.0, Trunk 0.21.14. This record separates automated checks from native acceptance and distribution readiness.
 
+## Settings toggle appearance (2026-09-10)
+
+Local **beta.18** replaces square settings checkboxes with compact **32 × 20 point pill toggles** based on the supplied reference: gray when off, blue when on, and a white circular thumb. The same styling covers general, privacy and advanced settings. Native checkbox inputs, labels, keyboard interaction and save behavior remain unchanged. Disabled controls dim; keyboard focus remains visible; reduced-motion and forced-color preferences have explicit styles. The rail and independent workspace window logic are unchanged.
+
+Validation passed: frontend build and three compiled-UI groups (detached workspace, toolbar/settings and visual), including dark/light layouts, plus regenerated English synthetic README captures. All four reports match the bundled frontend assets. This is a CSS-only application change; Rust tests were not rerun and previous test counts belong to their stated versions.
+
+The previous beta.17 process had no active editor/save/import and exited normally. The verified, ad-hoc-signed beta.18 is installed at **`/Applications/CopyRail.app`**; every file matches the delivery bundle. Native WebKit inspection confirmed a gray/off login-start toggle and a blue/on compact-layout toggle, with white thumbs and no square checkmark. Their values were not changed. Settings showed **⇧⌘V registered** with retry disabled. Esc closed settings and hid the single ordinary process (**PID 88399**). No real paste, login preference, Accessibility or system-security change was made. Checksum-verified maintenance retained beta.18, beta.17 and beta.16 and removed beta.15 plus superseded rebuildable outputs.
+
 ## Independent settings and preview window (2026-09-10)
 
 Local **beta.17** fixes the native transition architecture. The user's recording reopened the flicker issue after beta.16: settings open/close and preview transitions showed a displaced or absent rail for a frame. The earlier browser geometry checks could not validate AppKit/WebKit presentation. The production rail now keeps its frame while a second, persistent NSPanel hosts settings or preview; switching items reuses the preview dialog. Only the auxiliary panel is positioned above the rail. Language/preferences propagate between windows, selection and navigation remain rail-owned, and stale render acknowledgements cannot reopen a closed panel. Settings drafts survive closing/reopening. The embedded browser renderer retains its legacy combined layout for existing fixture coverage; it is not the production window architecture.
