@@ -2,6 +2,10 @@
 
 Snapshot: **2026-09-08**, source release **v0.1.0-mvp.1**. Platform checked locally: Apple Silicon macOS, Rust 1.98.0, Trunk 0.21.14. This record separates automated checks from native acceptance and distribution readiness.
 
+## README at 100% transparency (2026-09-10)
+
+The four README screenshots now select English and 100% background transparency through the production Settings controls, using the existing beta.23 compiled assets and synthetic clipboard content. A muted synthetic gradient behind the application makes transparent surfaces visible. The capture check passed: each frame retained the saved value 100, the production background-opacity value was zero, the captured panel background had zero alpha, visible app copy was English, and compiled asset hashes were unchanged. All four images were visually inspected. Both READMEs and the screenshot provenance document describe the demonstration setting and synthetic backdrop. These are browser demonstrations, not captures of native macOS vibrancy. This documentation-only update did not rebuild, reinstall or restart CopyRail, change the user's preferences, or rewrite the beta.23 delivery archive.
+
 ## Automatic settings and quiet search (2026-09-10)
 
 Local **beta.23** removes the Settings Save button and its footer. Language, opening position and appearance keep their existing immediate-save behavior. Login startup, compact layout and screen-sharing protection now save independently when toggled; failed writes restore that option and show an inline error. Each update merges only its field with the latest stored preferences. Login and sharing changes do not reposition the rail. Number fields and ignored-app lists save after a short typing pause through one serialized worker. Revisions prevent a slow response from overwriting newer text; closing Settings does not cancel an in-flight or debounced save. Invalid numbers (including the browser's incomplete numeric input state) and invalid bundle IDs preserve the saved preferences. Empty limits mean unlimited. Failed capture saves retain the draft and offer Retry. Restore is unavailable while these saves are pending.
