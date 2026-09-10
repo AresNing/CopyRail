@@ -90,6 +90,7 @@ impl GuardedTextView {
         let status = self.ivars().status.borrow().clone();
         if let Some(status) = status {
             status.setStringValue(&NSString::from_str(message));
+            status.setToolTip(Some(&NSString::from_str(message)));
         }
     }
 

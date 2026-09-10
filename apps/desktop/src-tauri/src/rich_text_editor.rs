@@ -1,11 +1,11 @@
 //! A real AppKit editor hosted by a Tauri native (non-WebView) window.
 use objc2::{
-    DefinedClass, MainThreadOnly, Message, define_class, msg_send, rc::Retained,
+    AnyThread, DefinedClass, MainThreadOnly, Message, define_class, msg_send, rc::Retained,
     runtime::AnyObject, sel,
 };
 use objc2_app_kit::{
-    NSAlert, NSAutoresizingMaskOptions as Resize, NSButton, NSEventModifierFlags, NSFontManager,
-    NSScrollView, NSTextField, NSTextView, NSWindow, NSWritingToolsBehavior,
+    NSAlert, NSAutoresizingMaskOptions as Resize, NSButton, NSColor, NSEventModifierFlags, NSFont,
+    NSFontManager, NSScrollView, NSTextField, NSTextView, NSWindow, NSWritingToolsBehavior,
 };
 use objc2_foundation::{
     MainThreadMarker, NSAttributedString, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize,
@@ -48,7 +48,7 @@ define_class!(
             let state = self.ivars();
             if state.saving.get() || state.text.is_importing() { return; }
             if writing_tools_active(&state.text) {
-                state.status.setStringValue(&NSString::from_str(crate::locale::t("请等待 Writing Tools 完成后再保存。")));
+                status_message(&state.status, crate::locale::t("请等待 Writing Tools 完成后再保存。"));
                 return;
             }
             let Some(storage) = (unsafe { state.text.textStorage() }) else { return; };
@@ -58,11 +58,11 @@ define_class!(
             }
             let payload = match crate::rich_text::encode(&storage) {
                 Ok(payload) => payload,
-                Err(error) => { state.status.setStringValue(&NSString::from_str(&error)); return; }
+                Err(error) => { status_message(&state.status, &error); return; }
             };
             state.saving.set(true);
             state.text.setEditable(false);
-            state.status.setStringValue(&NSString::from_str(crate::locale::t("正在保存…")));
+            status_message(&state.status, crate::locale::t("正在保存…"));
             let store = Arc::clone(&state.store);
             let window = state.window.clone();
             let id = state.id;
@@ -76,7 +76,7 @@ define_class!(
                         with_editor(callback_window.label(), |editor| {
                             editor.ivars().saving.set(false);
                             editor.ivars().text.setEditable(true);
-                            editor.ivars().status.setStringValue(&NSString::from_str(&error));
+                            status_message(&editor.ivars().status, &error);
                         });
                     } else {
                         callback_window.app_handle().state::<crate::DesktopState>().cloud_sync.wake();
@@ -90,6 +90,12 @@ define_class!(
         fn cancel(&self, _sender: Option<&AnyObject>) { self.request_close(); }
     }
 );
+
+fn status_message(label: &NSTextField, message: &str) {
+    let value = NSString::from_str(message);
+    label.setStringValue(&value);
+    label.setToolTip(Some(&value));
+}
 
 fn with_editor(label: &str, action: impl FnOnce(&Editor)) {
     // Clone before callbacks: destroying a window may re-enter cleanup.
@@ -198,7 +204,7 @@ pub fn open(
             snapshot.item.title
         ))
         .inner_size(720., 480.)
-        .min_inner_size(640., 340.)
+        .min_inner_size(640., 380.)
         .center()
         .visible(false)
         .content_protected(protected)
@@ -209,9 +215,36 @@ pub fn open(
     // The Tauri window owns this NSWindow for the lifetime of the editor.
     let native = unsafe { &*native_ptr.cast::<NSWindow>() };
     let content = native.contentView().ok_or("原生窗口没有内容区域。")?;
-    let scroll = NSScrollView::initWithFrame(NSScrollView::alloc(mtm), rect(16., 76., 688., 346.));
+    // Full-size content views extend behind the native titlebar. AppKit's
+    // contentLayoutRect excludes it; contentView.bounds alone does not.
+    let layout = editor_layout(native.contentLayoutRect().size);
+    native.setBackgroundColor(Some(&NSColor::windowBackgroundColor()));
+    native.setHasShadow(false);
+    let scroll = NSScrollView::initWithFrame(NSScrollView::alloc(mtm), layout.document);
     scroll.setHasVerticalScroller(true);
-    let text = crate::guarded_text_view::GuardedTextView::new(mtm, rect(0., 0., 688., 346.));
+    scroll.setBorderType(objc2_app_kit::NSBorderType::NoBorder);
+    scroll.setAutohidesScrollers(true);
+    scroll.setBackgroundColor(&NSColor::textBackgroundColor());
+    scroll.setWantsLayer(true);
+    if let Some(layer) = scroll.layer() {
+        layer.setCornerRadius(12.);
+        layer.setMasksToBounds(true);
+    }
+    let text = crate::guarded_text_view::GuardedTextView::new(
+        mtm,
+        rect(
+            0.,
+            0.,
+            layout.document.size.width,
+            layout.document.size.height,
+        ),
+    );
+    text.setBackgroundColor(&NSColor::textBackgroundColor());
+    text.setInsertionPointColor(Some(&NSColor::labelColor()));
+    text.setTextContainerInset(NSSize::new(18., 16.));
+    // AppKit maps document colors for display without rewriting attributed
+    // storage. Saving and dirty detection still use the original rich content.
+    text.setUsesAdaptiveColorMappingForDarkAppearance(true);
     text.setRichText(true);
     text.setImportsGraphics(true);
     text.setAllowsUndo(true);
@@ -231,7 +264,7 @@ pub fn open(
         text.setMaxSize(NSSize::new(f64::MAX, f64::MAX));
         if let Some(container) = text.textContainer() {
             container.setWidthTracksTextView(true);
-            container.setContainerSize(NSSize::new(688., f64::MAX));
+            container.setContainerSize(NSSize::new(layout.document.size.width - 36., f64::MAX));
         }
         text.textStorage()
             .ok_or("文本存储不可用。")?
@@ -239,16 +272,37 @@ pub fn open(
         content.addSubview(&scroll);
     }
     scroll.setDocumentView(Some(&text));
-    let status = NSTextField::labelWithString(
-        &NSString::from_str(document.warning.as_deref().unwrap_or(crate::locale::t(
-            "⌘S 保存 · Esc 取消；支持系统字体面板、撤销与右键文本操作。",
-        ))),
-        mtm,
+    let hint = if document.warning.is_some() {
+        crate::locale::t("部分格式已简化。保存使用当前格式，取消保留原内容。")
+    } else {
+        crate::locale::t("⌘S 保存 · Esc 取消")
+    };
+    let status = NSTextField::wrappingLabelWithString(&NSString::from_str(hint), mtm);
+    status.setFont(Some(&NSFont::systemFontOfSize(11.)));
+    status.setTextColor(Some(&NSColor::secondaryLabelColor()));
+    status.setToolTip(
+        document
+            .warning
+            .as_deref()
+            .map(NSString::from_str)
+            .as_deref(),
     );
-    status.setFrame(rect(16., 16., 688., 44.));
+    status.setFrame(layout.status);
     status.setAutoresizingMask(Resize::ViewWidthSizable | Resize::ViewMaxYMargin);
     content.addSubview(&status);
     text.set_status(&status);
+    // Layout may install fallback fonts for imported multilingual HTML. Take
+    // the immutable dirty-check baseline after that native normalization, before
+    // the user can edit; comparing with the decoder output flags an untouched
+    // document as changed merely because AppKit displayed it.
+    if let (Some(manager), Some(container)) =
+        unsafe { (text.layoutManager(), text.textContainer()) }
+    {
+        manager.ensureLayoutForTextContainer(&container);
+    }
+    let storage = unsafe { text.textStorage() }.ok_or("文本存储不可用。")?;
+    let original =
+        NSAttributedString::initWithAttributedString(NSAttributedString::alloc(), &storage);
     let controller = unsafe {
         msg_send![
             super(Editor::alloc(mtm).set_ivars(EditorState {
@@ -256,7 +310,7 @@ pub fn open(
                 store,
                 id: snapshot.item.id,
                 expected_hash: snapshot.item.content_hash,
-                original: document.text,
+                original,
                 text: text.clone(),
                 status,
                 saving: Cell::new(false),
@@ -307,8 +361,8 @@ pub fn open(
             crate::locale::t("取消"),
             &*controller as &AnyObject,
             sel!(cancel:),
-            512.,
-            80.,
+            layout.cancel.origin.x,
+            layout.cancel.size.width,
             "\u{1b}",
             NSEventModifierFlags::empty(),
         ),
@@ -316,8 +370,8 @@ pub fn open(
             crate::locale::t("保存"),
             &*controller as &AnyObject,
             sel!(save:),
-            600.,
-            104.,
+            layout.save.origin.x,
+            layout.save.size.width,
             "s",
             NSEventModifierFlags::Command,
         ),
@@ -333,15 +387,20 @@ pub fn open(
         };
         button.setKeyEquivalent(&NSString::from_str(key));
         button.setKeyEquivalentModifierMask(modifiers);
-        button.setFrame(rect(x, 434., width, 30.));
-        button.setAutoresizingMask(
-            Resize::ViewMinYMargin
-                | if x >= 512. {
-                    Resize::ViewMinXMargin
-                } else {
-                    Resize::ViewMaxXMargin
-                },
-        );
+        button.setFont(Some(&NSFont::systemFontOfSize(13.)));
+        button.setContentTintColor(Some(&NSColor::labelColor()));
+        let footer = action == sel!(cancel:) || action == sel!(save:);
+        button.setFrame(rect(
+            x,
+            if footer { 16. } else { layout.toolbar_y },
+            width,
+            30.,
+        ));
+        button.setAutoresizingMask(if footer {
+            Resize::ViewMaxYMargin | Resize::ViewMinXMargin
+        } else {
+            Resize::ViewMinYMargin | Resize::ViewMaxXMargin
+        });
         content.addSubview(&button);
     }
     EDITORS.with(|editors| editors.borrow_mut().insert(label.clone(), controller));
@@ -369,4 +428,54 @@ pub fn open(
 
 fn rect(x: f64, y: f64, width: f64, height: f64) -> NSRect {
     NSRect::new(NSPoint::new(x, y), NSSize::new(width, height))
+}
+
+struct EditorLayout {
+    document: NSRect,
+    status: NSRect,
+    cancel: NSRect,
+    save: NSRect,
+    toolbar_y: f64,
+}
+
+fn editor_layout(size: NSSize) -> EditorLayout {
+    EditorLayout {
+        document: rect(16., 72., size.width - 32., size.height - 130.),
+        status: rect(20., 14., size.width - 240., 38.),
+        cancel: rect(size.width - 204., 16., 80., 30.),
+        save: rect(size.width - 116., 16., 100., 30.),
+        toolbar_y: size.height - 44.,
+    }
+}
+
+#[cfg(test)]
+mod layout_tests {
+    use super::*;
+
+    #[test]
+    fn controls_fit_real_content_bounds_without_titlebar_or_footer_overlap() {
+        // Include titlebar-reduced bounds, minimum size and expanded windows.
+        for size in [
+            NSSize::new(640., 358.),
+            NSSize::new(720., 458.),
+            NSSize::new(1000., 720.),
+        ] {
+            let layout = editor_layout(size);
+            for r in [
+                layout.document,
+                layout.status,
+                layout.cancel,
+                layout.save,
+                rect(16., layout.toolbar_y, 328., 30.),
+            ] {
+                assert!(r.origin.x >= 0. && r.origin.y >= 0.);
+                assert!(r.origin.x + r.size.width <= size.width);
+                assert!(r.origin.y + r.size.height <= size.height);
+            }
+            assert!(layout.document.origin.y + layout.document.size.height < layout.toolbar_y);
+            assert!(layout.status.origin.x + layout.status.size.width < layout.cancel.origin.x);
+            assert!(layout.cancel.origin.x + layout.cancel.size.width < layout.save.origin.x);
+            assert!(layout.status.origin.y + layout.status.size.height < layout.document.origin.y);
+        }
+    }
 }

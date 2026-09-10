@@ -509,6 +509,10 @@ pub fn translate(language: Language, source: &str) -> &str {
             "⌘S to save · Esc to cancel. Supports the system font panel, undo and text context menus."
         }
         "字体…" => "Fonts…",
+        "⌘S 保存 · Esc 取消" => "⌘S Save · Esc Cancel",
+        "部分格式已简化。保存使用当前格式，取消保留原内容。" => {
+            "Some formatting was simplified. Save keeps this version; Cancel keeps the original."
+        }
         "下划线" => "Underline",
         "左对齐" => "Align left",
         "居中" => "Center",
