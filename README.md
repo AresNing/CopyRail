@@ -140,4 +140,6 @@ The English landing page lives in `site/`. Run `node scripts/build-site.mjs` to 
 
 ## Build the downloadable release
 
+For every GitHub Release, put the full **English** notes first and **简体中文** notes second, under explicit language headings. Keep version facts, installation requirements and limitations consistent across both sections. After publishing or editing, read the release back from GitHub to verify the order. Editing release notes alone does not rebuild binaries or change tags.
+
 On an Apple Silicon Mac with Cargo Tauri and Python 3.11+ installed, run `./scripts/check.sh`, then `./scripts/build-release.sh`. Check the optimized frontend, then run `python3 scripts/package-release.py`. The packager validates the version, architecture and build flags, signs locally, and creates DMG, ZIP and checksums under `output/CopyRail-1.0.0/downloads/`. It does not install or publish. Public builds disable experimental CloudKit and do not request iCloud entitlements.

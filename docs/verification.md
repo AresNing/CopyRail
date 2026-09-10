@@ -2,6 +2,12 @@
 
 Current release: **1.0.0 (2026-09-10)**. Earlier dated entries are historical snapshots. This record separates automated checks from native acceptance and distribution readiness.
 
+## Release notes language order (2026-09-10)
+
+Updated both existing GitHub Releases to show English before Simplified Chinese. Version `v1.0.0` keeps its existing English and Chinese content, reordered under language headings. Version `v0.1.0-mvp.1` adds an English translation before the unchanged Chinese source notes. Both bodies were read back from GitHub and matched the prepared text exactly; existing links and Chinese content were preserved. Release names, tags, target references, draft/pre-release state, publication timestamps and asset IDs/names/digests were verified unchanged. Evidence is retained in ignored `target/release-notes-language-order/`.
+
+The ongoing English-first, Chinese-second convention is recorded in the project collaboration rules and both READMEs, including a read-back check after future publication or editing. This is release-description/documentation maintenance only; no app build, installation, asset replacement or tag change was performed. Documentation whitespace checks passed; application tests were not rerun.
+
 ## GitHub Pages landing page (2026-09-10)
 
 The English landing page is authored in `site/`, targeting `https://aresning.github.io/CopyRail/`. It uses the original CopyRail icon and two existing synthetic README screenshots, with direct links to the public 1.0.0 Apple Silicon DMG, release files, installation instructions and source. Platform, signing, local-storage and sync statements match the current release documentation. The site uses system fonts, static HTML/CSS and native disclosure elements; it has no application JavaScript, analytics, external font requests or form submissions. Relative assets support the `/CopyRail/` project path. Responsive CSS, keyboard focus styles and reduced-motion handling are included.

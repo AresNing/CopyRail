@@ -139,4 +139,6 @@ Copyright 2026 CopyRail contributors。除另有说明外，项目自有代码�
 
 ## 构建安装包
 
+GitHub Release 说明统一先放完整 **English**，再放 **简体中文**，使用对应语言标题分段。两段的版本事实、安装要求和限制应一致。发布或编辑后，从 GitHub 重新读取正文核实顺序；仅修改发布说明不重建安装包或改动 tag。
+
 在 Apple Silicon Mac 安装 Cargo Tauri 和 Python 3.11+ 后，先运行 `./scripts/check.sh`，再运行 `./scripts/build-release.sh`。检查优化构建的前端后，运行 `python3 scripts/package-release.py`，即可在 `output/CopyRail-1.0.0/downloads/` 生成 DMG、ZIP 和校验文件。打包脚本不会安装或发布应用；公共构建关闭实验性 CloudKit，且不申请 iCloud 权限。
