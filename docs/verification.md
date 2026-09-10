@@ -2,6 +2,10 @@
 
 Current release: **1.0.0 (2026-09-10)**. Earlier dated entries are historical snapshots. This record separates automated checks from native acceptance and distribution readiness.
 
+## README restored to 50% opacity (2026-09-10)
+
+The final README presentation is 50% opacity, equivalent to 50% in Settings → Background transparency. Both READMEs, screenshot provenance and capture settings have been restored accordingly. All four screenshots were regenerated on the unchanged optimized 1.0.0 frontend; checks passed for English copy, persisted transparency 50, background-opacity 0.5 and actual panel alpha 0.5. The General settings image was visually inspected; the other three frames byte-match the previously inspected 50% images. Installed preferences and published 1.0.0 binaries/tag are unchanged.
+
 ## README with opaque backgrounds (2026-09-10)
 
 Both READMEs and all four demonstration screenshots now show fully opaque backgrounds (0% transparency), superseding the previous 50% presentation. The production Settings controls select English and 0% in the isolated synthetic fixture on the existing optimized 1.0.0 frontend. Capture checks passed for the persisted value, background-opacity 1 and opaque panel colors in every frame; visible copy remained English and compiled asset hashes were unchanged. All four images were visually inspected. This documentation-only update preserves the installed app's preferences and the published 1.0.0 binaries/tag.
