@@ -724,6 +724,42 @@ pub fn App() -> impl IntoView {
     let (excluded_apps, set_excluded_apps) = signal(String::new());
     let (desktop_preferences, set_desktop_preferences) = signal(DesktopPreferences::default());
     let settings_saving = RwSignal::new(false);
+    let appearance_saving = RwSignal::new(false);
+    let appearance_error = RwSignal::new(false);
+    let change_transparency = move |event: ev::Event| {
+        let Ok(next) = event_target_value(&event).parse::<u8>() else {
+            return;
+        };
+        if next > 100 || settings_saving.get_untracked() {
+            return;
+        }
+        let mut previous = desktop_preferences.get_untracked().background_transparency;
+        set_desktop_preferences.update(|draft| draft.background_transparency = next);
+        appearance_error.set(false);
+        if appearance_saving.get_untracked() {
+            return;
+        }
+        appearance_saving.set(true);
+        spawn_local(async move {
+            loop {
+                TimeoutFuture::new(100).await;
+                let request = desktop_preferences.get_untracked().background_transparency;
+                match invoke::<u8>("set_background_transparency", &CommandArgs { request }).await {
+                    Ok(saved) => previous = saved,
+                    Err(_) => {
+                        set_desktop_preferences
+                            .update(|draft| draft.background_transparency = previous);
+                        appearance_error.set(true);
+                        break;
+                    }
+                }
+                if desktop_preferences.get_untracked().background_transparency == request {
+                    break;
+                }
+            }
+            appearance_saving.set(false);
+        });
+    };
     let language_saving = RwSignal::new(false);
     let language_error = RwSignal::new(false);
     let change_language = move |event: ev::Event| {
@@ -3858,7 +3894,7 @@ pub fn App() -> impl IntoView {
             class:expanded-workspace=move || expanded_visible.get()
             class:workspace-ready=move || workspace_ready.get()
             class:dock-short=move || dock_height.get().min(viewport_height.get()) <= 190.0
-            style=move || format!("--saved-dock-height:{}px;", dock_height.get())
+            style=move || format!("--saved-dock-height:{}px;--background-opacity:{};", dock_height.get(), 1.0 - f64::from(desktop_preferences.get().background_transparency) / 100.0)
             class:compact=move || applied_compact.get()
             class:drag-active=move || native_dragging.get()
             class:native-feedback=move || native_feedback_active.get()
@@ -4678,6 +4714,16 @@ pub fn App() -> impl IntoView {
                         </select>
                     </label>
                     <Show when=move || language_error.get()><p class="language-error" role="status">{move || t("无法保存语言，请重试。")}</p></Show>
+                    <label class="appearance-setting">
+                        <span><strong>{move || t("背景透明度")}</strong><small>{move || if appearance_saving.get() { t("正在保存外观…") } else { t("调整后自动保存，应用于所有窗口。") }}</small></span>
+                        <div class="appearance-slider">
+                            <div><span>{move || t("不透明")}</span><output>{move || format!("{}%", desktop_preferences.get().background_transparency)}</output><span>{move || t("通透")}</span></div>
+                            <input type="range" min="0" max="100" step="1" aria-label=move || t("背景透明度")
+                                prop:value=move || desktop_preferences.get().background_transparency
+                                disabled=move || settings_saving.get() on:input=change_transparency />
+                        </div>
+                    </label>
+                    {move || appearance_error.get().then(|| view! { <p class="appearance-error" role="alert">{move || t("外观保存失败，请重试。")}</p> })}
                     <label class="toggle-setting">
                         <span>{move || t("登录时自动启动")}</span>
                         <input
@@ -4963,7 +5009,7 @@ pub fn App() -> impl IntoView {
                     </section>
                     </div>
                     </div></div>
-                    <footer><span>{move || t("通用与隐私选项修改后保存")}</span><button class="save-settings" type="button" disabled=move || language_saving.get() || settings_saving.get() on:click=save_settings>{move || t("保存设置")}</button></footer>
+                    <footer><span>{move || t("通用与隐私选项修改后保存")}</span><button class="save-settings" type="button" disabled=move || language_saving.get() || settings_saving.get() || appearance_saving.get() on:click=save_settings>{move || t("保存设置")}</button></footer>
                 </aside>
             })}
 

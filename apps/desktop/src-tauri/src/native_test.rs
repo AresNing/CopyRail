@@ -263,6 +263,7 @@ pub fn allows_command(command: &str) -> bool {
             | "get_capture_preferences"
             | "get_desktop_preferences"
             | "set_language"
+            | "set_background_transparency"
             | "get_language_settings" // Read system locale and the isolated preference only.
             | "capture_status"
             | "start_clip_drag"

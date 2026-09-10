@@ -11,3 +11,5 @@ node scripts/capture-readme-ui.mjs
 ```
 
 The script checks that visible app copy is English, screenshots the rail, compact preview, language settings and history settings, and verifies that compiled asset hashes are unchanged. Its report is written to `target/ui-verification/readme-screenshots-report.json`. Browser screenshots do not establish native paste, permissions, window behavior or VoiceOver acceptance.
+
+Native frosted-glass compositing is checked in the macOS app separately. These browser captures show the interface and synthetic content, not a captured desktop backdrop.

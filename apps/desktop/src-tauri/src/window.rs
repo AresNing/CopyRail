@@ -224,6 +224,18 @@ fn install_preview_escape(window: &WebviewWindow) -> Result<(), String> {
 pub fn apply_frame_style(window: &WebviewWindow) -> Result<(), String> {
     configure_spaces(window).map_err(|error| error.to_string())?;
     window.set_shadow(false).map_err(|e| e.to_string())?;
+    // Install once. Slider changes adjust only web background tint, never the
+    // native panel's alpha/frame or the lifetime of its blur layer.
+    #[cfg(target_os = "macos")]
+    window
+        .set_effects(
+            tauri::window::EffectsBuilder::new()
+                .effect(tauri::window::Effect::HudWindow)
+                .state(tauri::window::EffectState::Active)
+                .radius(16.0)
+                .build(),
+        )
+        .map_err(|e| e.to_string())?;
     #[cfg(target_os = "macos")]
     {
         objc2::MainThreadMarker::new().ok_or("窗口圆角必须在主线程设置。")?;

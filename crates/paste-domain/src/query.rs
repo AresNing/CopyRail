@@ -108,11 +108,37 @@ impl CapturePreferences {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(default)]
 pub struct DesktopPreferences {
     pub language: crate::LanguagePreference,
     pub launch_at_login: bool,
     pub screen_share_protection: bool,
     pub compact_mode: bool,
+    #[serde(deserialize_with = "deserialize_transparency")]
+    pub background_transparency: u8,
+}
+
+impl Default for DesktopPreferences {
+    fn default() -> Self {
+        Self {
+            language: Default::default(),
+            launch_at_login: false,
+            screen_share_protection: false,
+            compact_mode: false,
+            background_transparency: 50,
+        }
+    }
+}
+
+fn deserialize_transparency<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<u8, D::Error> {
+    let value = u8::deserialize(deserializer)?;
+    if value > 100 {
+        return Err(serde::de::Error::custom(
+            "background transparency must be 0–100",
+        ));
+    }
+    Ok(value)
 }

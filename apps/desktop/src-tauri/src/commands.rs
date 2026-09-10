@@ -2212,6 +2212,20 @@ pub fn get_language_settings(
 }
 
 #[tauri::command]
+pub fn set_background_transparency(
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+    request: u8,
+) -> ApiResult<u8> {
+    let saved = state
+        .store
+        .save_background_transparency(request)
+        .map_err(ApiError::storage)?;
+    let _ = tauri::Emitter::emit(&app, "pasters-preferences-changed", ());
+    Ok(saved)
+}
+
+#[tauri::command]
 pub fn get_desktop_preferences(
     app: AppHandle,
     state: State<'_, DesktopState>,
@@ -2550,6 +2564,7 @@ mod tests {
             launch_at_login: true,
             compact_mode: true,
             screen_share_protection: true,
+            background_transparency: 50,
         };
         store
             .save_desktop_preferences(saved)

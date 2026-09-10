@@ -324,6 +324,14 @@ pub fn translate(language: Language, source: &str) -> &str {
         "启动、显示与粘贴" => "Startup, appearance and paste",
         "登录时自动启动" => "Launch at login",
         "紧凑卡片布局" => "Compact cards",
+        "背景透明度" => "Background transparency",
+        "不透明" => "Opaque",
+        "通透" => "Clear",
+        "调整后自动保存，应用于所有窗口。" => {
+            "Saves automatically and applies to all windows."
+        }
+        "正在保存外观…" => "Saving appearance…",
+        "外观保存失败，请重试。" => "Could not save appearance. Try again.",
         "顺序粘贴说明" => "About the paste queue",
         "点卡片上的「＋」按顺序加入待粘贴列表。列表有内容时，回车优先粘贴第一条；再次唤起后可继续下一条。" => {
             "Use + on each card to build a paste queue. Return pastes the first item; reopen CopyRail for the next one."

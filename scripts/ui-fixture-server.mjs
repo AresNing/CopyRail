@@ -178,8 +178,13 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
       }
       case 'get_capture_preferences':
         return { retention: { max_age_days: null, max_unpinned_items: null }, excluded_bundle_ids: [] };
+      case 'set_background_transparency':
+        if(window.appearanceFixture?.delayMs)await new Promise(r=>setTimeout(r,window.appearanceFixture.delayMs));
+        if(window.appearanceFixture?.fail)throw {message:'Synthetic appearance failure'};
+        localStorage.setItem('fixture-transparency',String(args.request));
+        emit('pasters-preferences-changed',null);return args.request;
       case 'get_desktop_preferences':
-        return { language: localStorage.getItem('fixture-language') ?? 'system', launch_at_login: false, screen_share_protection: false, compact_mode: (visualMode || pinboardMode) && new URLSearchParams(location.search).get('compact') === '1' };
+        return { background_transparency: Number(localStorage.getItem('fixture-transparency') ?? 50), language: localStorage.getItem('fixture-language') ?? 'system', launch_at_login: false, screen_share_protection: false, compact_mode: (visualMode || pinboardMode) && new URLSearchParams(location.search).get('compact') === '1' };
       case 'get_language_settings': return languageSettings(localStorage.getItem('fixture-language') ?? 'system');
       case 'set_language': {
         const control = window.languageFixture;

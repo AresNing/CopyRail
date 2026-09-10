@@ -1655,10 +1655,38 @@ impl SqliteStore {
         Ok(language)
     }
 
+    /// Save appearance independently of language, login and privacy drafts.
+    pub fn save_background_transparency(&self, value: u8) -> Result<u8, StorageError> {
+        if value > 100 {
+            return Err(StorageError::InvalidBackgroundTransparency);
+        }
+        let connection = self.lock()?;
+        let json = connection
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'desktop_preferences'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        let mut preferences = match json {
+            Some(json) => serde_json::from_str::<DesktopPreferences>(&json)
+                .map_err(|error| corrupt("desktop preferences", error))?,
+            None => DesktopPreferences::default(),
+        };
+        preferences.background_transparency = value;
+        let json = serde_json::to_string(&preferences)
+            .map_err(|error| corrupt("desktop preferences", error))?;
+        connection.execute("INSERT INTO settings (key, value, updated_at_ms) VALUES ('desktop_preferences', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at_ms = excluded.updated_at_ms", params![json, Utc::now().timestamp_millis()])?;
+        Ok(value)
+    }
+
     pub fn save_desktop_preferences(
         &self,
         preferences: DesktopPreferences,
     ) -> Result<DesktopPreferences, StorageError> {
+        if preferences.background_transparency > 100 {
+            return Err(StorageError::InvalidBackgroundTransparency);
+        }
         let json = serde_json::to_string(&preferences)
             .map_err(|error| corrupt("desktop preferences", error))?;
         let connection = self.lock()?;
@@ -4441,6 +4469,8 @@ struct RawPinboardShare {
 
 #[derive(Debug, Error)]
 pub enum StorageError {
+    #[error("background transparency must be 0–100")]
+    InvalidBackgroundTransparency,
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]

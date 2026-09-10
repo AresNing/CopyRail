@@ -2279,3 +2279,42 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   visibility: visible; pointer-events: auto;
 }
 .native-rail > :is(.settings-popover, .preview-overlay) { display: none; }
+
+/* One text scale for settings: page titles, controls, and supporting copy. */
+.settings-popover { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; font-size: 13px; line-height: 1.5; }
+.settings-popover :is(button, input, select, textarea) { font-family: inherit; font-size: 13px; line-height: 1.5; }
+.settings-popover > header strong { font-size: 14px; font-weight: 600; }
+.settings-popover .settings-page h2 { font-size: 16px; font-weight: 600; line-height: 1.4; }
+.settings-popover .settings-nav button { font-size: 13px; font-weight: 400; }
+.settings-popover .settings-nav button.active { font-weight: 600; }
+.settings-popover .settings-page :is(label, strong, summary) { font-size: 13px; line-height: 1.5; }
+.settings-popover .settings-page strong { font-weight: 500; }
+.settings-popover .settings-page > label > span { font-weight: 500; }
+.settings-popover .settings-page :is(p, small, .settings-description, .permission-help, .permission-troubleshooting, .keyboard-reference, .sync-heading span, .mcp-heading span, .backup-settings span, .shortcut-status span, .permission-summary span, .mcp-empty, .mcp-config-once span) { font-size: 12px; font-weight: 400; line-height: 1.5; }
+.settings-popover > footer > span { font-size: 12px; line-height: 1.5; }
+.settings-popover .settings-page > .appearance-setting { grid-template-columns: minmax(0, 1fr) 180px; gap: 20px; }
+.appearance-setting > span { display: grid; gap: 3px; }
+.appearance-setting small { color: var(--muted); }
+.appearance-slider { min-width: 0; }
+.appearance-slider > div { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.settings-popover .appearance-slider input { width: 100%; height: 24px; margin: 3px 0 0; padding: 0; border: 0; background: transparent; accent-color: #3478f6; cursor: pointer; }
+.appearance-error { color: var(--danger-text); }
+@media (max-width: 600px) {
+  .settings-popover .settings-page > .appearance-setting { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+}
+
+/* Native NSVisualEffectView blurs the desktop underneath each window. Keep
+   all foreground content at full opacity; only these background tints vary. */
+.paste-shell { --glass-shell-rgb: 242, 242, 242; --glass-content-rgb: 255, 255, 255; --glass-group-rgb: 245, 245, 245; }
+.paste-shell > :is(.dock-surface, .settings-popover, .preview-overlay) { background: rgba(var(--glass-shell-rgb), var(--background-opacity, 1)); }
+.settings-popover .settings-nav { background: transparent; }
+.settings-popover .settings-content, .preview-overlay .preview-content { background: rgba(var(--glass-content-rgb), var(--background-opacity, 1)); }
+.settings-popover .settings-page > section { background: rgba(var(--glass-group-rgb), calc(0.16 + var(--background-opacity, 1) * 0.84)); }
+@media (prefers-color-scheme: dark) {
+  .paste-shell { --glass-shell-rgb: 10, 10, 10; --glass-content-rgb: 20, 20, 20; --glass-group-rgb: 36, 36, 36; }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  .paste-shell { --background-opacity: 1 !important; }
+}
+.settings-popover button { font-weight: 500; }
+.settings-popover :is(.permission-state, .mcp-client-row, .sync-conflict-copy dt, .sync-conflict-copy dd, .shared-conflict-list, .shared-conflict-list > span) { font-size: 12px; line-height: 1.5; }

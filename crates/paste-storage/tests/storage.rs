@@ -1500,6 +1500,7 @@ fn persists_desktop_preferences() {
         launch_at_login: true,
         screen_share_protection: true,
         compact_mode: true,
+        background_transparency: 50,
     };
     assert_eq!(
         store
@@ -1842,4 +1843,51 @@ fn language_upgrade_roundtrip_isolated_update_and_failed_save() {
         assert_eq!(serde_json::to_value(language).expect("serialize"), wire);
     }
     assert!(serde_json::from_value::<Language>(serde_json::json!("xx")).is_err());
+}
+
+#[test]
+fn appearance_upgrade_preserves_other_preferences_and_rejects_invalid_or_failed_writes() {
+    let directory = tempfile::tempdir().expect("temporary store");
+    let path = directory.path().join("history.db");
+    let store = SqliteStore::open(&path).expect("store");
+    let sql = rusqlite::Connection::open(&path).expect("fixture connection");
+    sql.execute("INSERT INTO settings(key,value,updated_at_ms) VALUES ('desktop_preferences',?1,0)",
+        [r#"{"language":"zh-CN","compact_mode":true,"launch_at_login":true,"screen_share_protection":true}"#]).expect("legacy settings");
+    let old = store.load_desktop_preferences().expect("upgrade");
+    assert_eq!(old.background_transparency, 50);
+    for value in [0, 100, 37] {
+        store
+            .save_background_transparency(value)
+            .expect("save appearance");
+        assert_eq!(
+            store.load_desktop_preferences().expect("read"),
+            DesktopPreferences {
+                background_transparency: value,
+                ..old
+            }
+        );
+    }
+    assert!(store.save_background_transparency(101).is_err());
+    assert!(
+        store
+            .save_desktop_preferences(DesktopPreferences {
+                background_transparency: 255,
+                ..old
+            })
+            .is_err()
+    );
+    sql.execute_batch("CREATE TRIGGER reject_appearance BEFORE UPDATE ON settings WHEN NEW.key = 'desktop_preferences' BEGIN SELECT RAISE(ABORT, 'synthetic write failure'); END;").expect("failure fixture");
+    assert!(store.save_background_transparency(80).is_err());
+    drop(store);
+    let reopened = SqliteStore::open(&path).expect("reopen");
+    assert_eq!(
+        reopened
+            .load_desktop_preferences()
+            .expect("persisted")
+            .background_transparency,
+        37
+    );
+    assert!(
+        serde_json::from_str::<DesktopPreferences>(r#"{"background_transparency":101}"#).is_err()
+    );
 }
