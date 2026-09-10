@@ -33,6 +33,21 @@
         "skipTaskbar": true,
         "shadow": false,
         "visible": false
+      },
+      {
+        "label": "workspace",
+        "title": "CopyRail",
+        "url": "index.html?workspace=1",
+        "width": 760,
+        "height": 348,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": false,
+        "focus": false
       }
     ],
     "security": {
@@ -41,7 +56,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
     "category": "Productivity",
     "shortDescription": "A private, visual clipboard workspace built with Rust",
     "macOS": {

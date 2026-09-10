@@ -1,4 +1,5 @@
 use crate::i18n::{localized_format, t};
+use crate::workspace_protocol::{WorkspaceContent, WorkspaceKey, WorkspaceSnapshot};
 use std::collections::{HashMap, HashSet};
 
 use crate::context_action::ContextAction;
@@ -31,6 +32,28 @@ const FILTER_KINDS: [ContentKind; 7] = [
 extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = invoke)]
     fn invoke_js(command: &str, args: JsValue) -> Promise;
+}
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = window, js_name = copyrailWindowRole)]
+    fn window_role() -> String;
+    #[wasm_bindgen(js_namespace = window, js_name = copyrailWorkspacePaint)]
+    fn workspace_paint() -> Promise;
+    #[wasm_bindgen(js_namespace = window, js_name = copyrailDispatchKey)]
+    fn dispatch_workspace_key(key: &str, shift: bool, meta: bool);
+}
+#[derive(Deserialize)]
+struct WorkspaceEvent {
+    payload: WorkspaceSnapshot,
+}
+#[derive(Deserialize)]
+struct WorkspaceKeyEvent {
+    payload: WorkspaceKey,
+}
+#[derive(Serialize)]
+struct WorkspaceReadyArgs {
+    revision: u64,
 }
 
 #[derive(Serialize)]
@@ -579,6 +602,9 @@ fn js_error(value: JsValue) -> String {
 
 #[component]
 pub fn App() -> impl IntoView {
+    let role = window_role();
+    let auxiliary = role == "workspace";
+    let native_rail = role == "main";
     crate::i18n::init();
     let (clips, set_clips) = signal(Vec::<ClipItem>::new());
     let (pinboards, set_pinboards) = signal(Vec::<Pinboard>::new());
@@ -769,11 +795,17 @@ pub fn App() -> impl IntoView {
     });
     on_cleanup(move || resize_listener.remove());
     let workspace_ready = Memo::new(move |_| {
+        if auxiliary {
+            return expanded_visible.get();
+        }
         expanded_visible.get()
             && preview_frame_applied.get() == Some(true)
             && viewport_height.get() > dock_height.get() + 100.0
     });
     Effect::new(move |_| {
+        if auxiliary || native_rail {
+            return;
+        }
         let desired = expanded_visible.get();
         if preview_frame_pending.get_untracked()
             || Some(desired) == preview_frame_applied.get_untracked()
@@ -984,6 +1016,9 @@ pub fn App() -> impl IntoView {
             invoke::<PermissionStatus>("get_permission_status", &EmptyArgs {}).await
         {
             set_permission_status.set(Some(current));
+        }
+        if auxiliary {
+            return;
         }
         loop {
             if native_dragging.get_untracked()
@@ -1375,6 +1410,211 @@ pub fn App() -> impl IntoView {
             }
         });
     });
+    // The rail owns selection/query/queue. The auxiliary owns persistent settings
+    // drafts and renders just the current item, never a second history list.
+    let workspace_snapshot = RwSignal::new(WorkspaceSnapshot::default());
+    let apply_workspace = Callback::new(move |snapshot: WorkspaceSnapshot| {
+        if !auxiliary || snapshot.revision < workspace_snapshot.get_untracked().revision {
+            return;
+        }
+        workspace_snapshot.set(snapshot.clone());
+        match snapshot.content {
+            WorkspaceContent::Closed => {
+                set_settings_open.set(false);
+                set_preview_open.set(None);
+            }
+            WorkspaceContent::Settings { tab } => {
+                set_preview_open.set(None);
+                settings_tab.set(match tab.as_str() {
+                    "shortcuts" => "shortcuts",
+                    "history" => "history",
+                    "backup" => "backup",
+                    "advanced" => "advanced",
+                    _ => "general",
+                });
+                set_settings_open.set(true);
+                refresh_shortcut.run(());
+            }
+            WorkspaceContent::Preview { clip } => {
+                set_settings_open.set(false);
+                let id = clip.id;
+                let hash = clip.content_hash;
+                let image = clip.content_kind == ContentKind::Image;
+                set_clips.set(vec![*clip]);
+                set_selected.set(0);
+                set_selected_ids.set(HashSet::from([id]));
+                loaded_context.set(Some(search_context.get_untracked()));
+                set_preview_open.set(Some(id));
+                if image {
+                    set_previews.set(HashMap::new());
+                    set_preview_loading.set(HashSet::from([id]));
+                    spawn_local(async move {
+                        let result = invoke::<PreviewResult>(
+                            "get_clip_preview",
+                            &CommandArgs {
+                                request: PreviewRequest {
+                                    clip_id: id.to_string(),
+                                },
+                            },
+                        )
+                        .await;
+                        if clips.with_untracked(|items| {
+                            items
+                                .first()
+                                .is_some_and(|item| item.id == id && item.content_hash == hash)
+                        }) {
+                            if let Ok(asset) = result {
+                                set_previews.update(|cache| {
+                                    cache.insert(id, asset);
+                                });
+                            }
+                            set_preview_loading.set(HashSet::new());
+                        }
+                    });
+                }
+            }
+        }
+        if !matches!(
+            workspace_snapshot.get_untracked().content,
+            WorkspaceContent::Closed
+        ) {
+            spawn_local(async move {
+                let _ = JsFuture::from(workspace_paint()).await;
+                if workspace_snapshot.get_untracked().revision == snapshot.revision
+                    && let Err(message) = invoke::<()>(
+                        "present_workspace",
+                        &WorkspaceReadyArgs {
+                            revision: snapshot.revision,
+                        },
+                    )
+                    .await
+                {
+                    set_error.set(Some(message));
+                }
+            });
+        }
+    });
+    if auxiliary {
+        drag_drop::subscribe(
+            "pasters-workspace",
+            Callback::new(move |value| {
+                if let Ok(event) = serde_wasm_bindgen::from_value::<WorkspaceEvent>(value) {
+                    apply_workspace.run(event.payload);
+                }
+            }),
+            Callback::new(move |message| set_error.set(Some(message))),
+        );
+        // Reconcile after subscription and periodically while hidden: a load or
+        // subscription race must not lose the user's very first open request.
+        spawn_local(async move {
+            loop {
+                if let Ok(snapshot) =
+                    invoke::<WorkspaceSnapshot>("get_workspace", &EmptyArgs {}).await
+                    && snapshot.revision > workspace_snapshot.get_untracked().revision
+                {
+                    apply_workspace.run(snapshot);
+                }
+                TimeoutFuture::new(500).await;
+            }
+        });
+        Effect::new(move |_| {
+            if !expanded_visible.get()
+                && !matches!(workspace_snapshot.get().content, WorkspaceContent::Closed)
+            {
+                spawn_local(async move {
+                    if let Err(message) = invoke::<()>("dismiss_workspace", &EmptyArgs {}).await {
+                        set_error.set(Some(message));
+                    }
+                });
+            }
+        });
+    }
+    let preview_item = Memo::new(move |previous: Option<&Option<ClipItem>>| {
+        preview_open
+            .get()
+            .and_then(|id| clips.with(|items| items.iter().find(|item| item.id == id).cloned()))
+            .or_else(|| previous.cloned().flatten())
+    });
+    let requested_workspace = Memo::new(move |_| {
+        if settings_open.get() {
+            WorkspaceContent::Settings {
+                tab: settings_tab.get().into(),
+            }
+        } else {
+            preview_open
+                .get()
+                .and_then(|id| clips.with(|items| items.iter().find(|item| item.id == id).cloned()))
+                .map(|clip| WorkspaceContent::Preview {
+                    clip: Box::new(clip),
+                })
+                .unwrap_or_default()
+        }
+    });
+    let workspace_sending = RwSignal::new(false);
+    if native_rail {
+        Effect::new(move |_| {
+            let _ = requested_workspace.get();
+            if workspace_sending.get_untracked() {
+                return;
+            }
+            workspace_sending.set(true);
+            spawn_local(async move {
+                loop {
+                    let request = requested_workspace.get_untracked();
+                    if let Err(message) = invoke::<()>(
+                        "update_workspace",
+                        &CommandArgs {
+                            request: request.clone(),
+                        },
+                    )
+                    .await
+                    {
+                        set_error.set(Some(message));
+                        break;
+                    }
+                    if requested_workspace.get_untracked() == request {
+                        break;
+                    }
+                }
+                workspace_sending.set(false);
+            });
+        });
+        drag_drop::subscribe(
+            "pasters-workspace-key",
+            Callback::new(move |value| {
+                if let Ok(event) = serde_wasm_bindgen::from_value::<WorkspaceKeyEvent>(value) {
+                    dispatch_workspace_key(
+                        &event.payload.key,
+                        event.payload.shift,
+                        event.payload.meta,
+                    );
+                }
+            }),
+            Callback::new(move |message| set_error.set(Some(message))),
+        );
+    }
+    drag_drop::subscribe(
+        "pasters-preferences-changed",
+        Callback::new(move |_| {
+            spawn_local(async move {
+                if let Ok(settings) =
+                    invoke::<paste_domain::LanguageSettings>("get_language_settings", &EmptyArgs {})
+                        .await
+                {
+                    crate::i18n::set_language(settings.effective);
+                    set_desktop_preferences.update(|draft| draft.language = settings.preference);
+                }
+                if native_rail
+                    && let Ok(saved) =
+                        invoke::<DesktopPreferences>("get_desktop_preferences", &EmptyArgs {}).await
+                {
+                    set_desktop_preferences.set(saved);
+                    set_applied_compact.set(saved.compact_mode);
+                }
+            });
+        }),
+        Callback::new(move |message| set_error.set(Some(message))),
+    );
     let dismiss_search = Callback::new(move |()| {
         set_query.set(String::new());
         set_active_kind.set(None);
@@ -1599,6 +1839,40 @@ pub fn App() -> impl IntoView {
     });
 
     let on_keydown = move |event: ev::KeyboardEvent| {
+        if auxiliary && !event.is_composing() {
+            if event.key() == "Escape" {
+                event.prevent_default();
+                spawn_local(async move {
+                    let _ = invoke::<()>("dismiss_workspace", &EmptyArgs {}).await;
+                });
+                return;
+            }
+            let key = WorkspaceKey {
+                key: event.key(),
+                shift: event.shift_key(),
+                meta: event.meta_key(),
+            };
+            if matches!(event.key().as_str(), "Enter" | " ")
+                && event
+                    .target()
+                    .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                    .is_some_and(|element| element.closest("button, a").ok().flatten().is_some())
+            {
+                return;
+            }
+            if preview_visible.get_untracked()
+                && !is_text_entry_target(&event)
+                && key.valid()
+                && !event.ctrl_key()
+                && !event.alt_key()
+            {
+                event.prevent_default();
+                spawn_local(async move {
+                    let _ = invoke::<()>("workspace_key", &CommandArgs { request: key }).await;
+                });
+                return;
+            }
+        }
         if context_menu_open.get_untracked() {
             // AppKit owns menu navigation, Escape and Return while tracking.
             return;
@@ -3578,6 +3852,8 @@ pub fn App() -> impl IntoView {
     view! {
         <main
             class="paste-shell"
+            class:auxiliary-workspace=auxiliary
+            class:native-rail=native_rail
             class:reading-preview=move || preview_visible.get()
             class:expanded-workspace=move || expanded_visible.get()
             class:workspace-ready=move || workspace_ready.get()
@@ -4379,7 +4655,7 @@ pub fn App() -> impl IntoView {
                 <div class="error-banner capture-error" role="status">{move || t(&message).to_owned()}</div>
             })}
             </div>
-            {move || settings_open.get().then(|| view! {
+            {move || (settings_open.get() && !native_rail).then(|| view! {
                 <aside class="settings-popover" role="dialog" aria-label=move || t("CopyRail 设置")>
                     <header><strong>{move || t("设置")}</strong><button type="button" aria-label=move || t("关闭设置") on:click=move |_| set_settings_open.set(false)>"×"</button></header>
                     <div class="settings-layout">
@@ -4691,33 +4967,20 @@ pub fn App() -> impl IntoView {
                 </aside>
             })}
 
-            <For
-                each=move || { preview_open.get().and_then(|id| clips.get().into_iter().find(|clip| clip.id == id)).into_iter().collect::<Vec<_>>() }
-                key=|clip| (clip.id, clip.content_hash, clip.title.clone())
-                children=move |clip| {
-                        let clip_id = clip.id;
-                        view! {
-                            <PreviewOverlay
-                                clip=clip
-                                ready=Signal::derive(move || workspace_ready.get())
-                                preview=Signal::derive(move || previews.get().get(&clip_id).cloned())
-                                loading=Signal::derive(move || preview_loading.get().contains(&clip_id))
-                                editing=Signal::derive(move || image_edit_loading.get().contains(&clip_id))
-                                recognizing=Signal::derive(move || ocr_loading.get().contains(&clip_id))
-                                on_rotate=Callback::new(move |direction| {
-                                    rotate_preview_image.run((clip_id, direction));
-                                })
-                                on_recognize=Callback::new(move |_| {
-                                    recognize_preview_text.run(clip_id);
-                                })
-                                on_open_link=Callback::new(move |_| {
-                                    open_preview_link.run(clip_id);
-                                })
-                                on_close=Callback::new(move |_| close_preview.run(()))
-                            />
-                        }
-                }
-            />
+            <Show when=move || preview_visible.get() && !native_rail>
+                <PreviewOverlay
+                    clip=Signal::derive(move || preview_item.get().expect("visible preview has an item"))
+                    ready=Signal::derive(move || workspace_ready.get())
+                    preview=Signal::derive(move || preview_open.get().and_then(|id|previews.with(|items|items.get(&id).cloned())))
+                    loading=Signal::derive(move || preview_open.get().is_some_and(|id|preview_loading.with(|items|items.contains(&id))))
+                    editing=Signal::derive(move || preview_open.get().is_some_and(|id|image_edit_loading.with(|items|items.contains(&id))))
+                    recognizing=Signal::derive(move || preview_open.get().is_some_and(|id|ocr_loading.with(|items|items.contains(&id))))
+                    on_rotate=Callback::new(move |direction| {if let Some(id)=preview_open.get_untracked(){rotate_preview_image.run((id,direction));}})
+                    on_recognize=Callback::new(move |_| {if let Some(id)=preview_open.get_untracked(){recognize_preview_text.run(id);}})
+                    on_open_link=Callback::new(move |_| {if let Some(id)=preview_open.get_untracked(){open_preview_link.run(id);}})
+                    on_close=Callback::new(move |_|close_preview.run(()))
+                />
+            </Show>
         </main>
     }
 }
@@ -4986,7 +5249,7 @@ fn PdfDocumentPreview(clip_id: ClipId) -> impl IntoView {
 
 #[component]
 fn PreviewOverlay(
-    clip: ClipItem,
+    clip: Signal<ClipItem>,
     ready: Signal<bool>,
     preview: Signal<Option<PreviewResult>>,
     loading: Signal<bool>,
@@ -5005,18 +5268,19 @@ fn PreviewOverlay(
             let _ = root.focus();
         }
     });
-    let is_image = clip.content_kind == ContentKind::Image;
-    let is_link = clip.content_kind == ContentKind::Link;
-    let preview_text = clip.searchable_text.clone();
-    let media = if clip.content_kind == ContentKind::Pdf {
-        view! { <PdfDocumentPreview clip_id=clip.id /> }.into_any()
-    } else {
-        view! { {move || preview.get().map_or_else(
+    let is_image = move || clip.with(|item| item.content_kind == ContentKind::Image);
+    let is_link = move || clip.with(|item| item.content_kind == ContentKind::Link);
+    let preview_text = move || clip.with(|item| item.searchable_text.clone());
+    let media = move || {
+        if clip.with(|item| item.content_kind == ContentKind::Pdf) {
+            view! { <PdfDocumentPreview clip_id=clip.get().id /> }.into_any()
+        } else {
+            view! { {move || preview.get().map_or_else(
             || {
                 if loading.get() {
                     view! { <div class="preview-loading">{move || t("正在生成预览…")}</div> }.into_any()
                 } else {
-                    view! { <pre class="preview-text">{preview_text.clone()}</pre> }.into_any()
+                    view! { <pre class="preview-text">{preview_text()}</pre> }.into_any()
                 }
             },
             |asset| {
@@ -5042,20 +5306,21 @@ fn PreviewOverlay(
             },
         )} }
         .into_any()
+        }
     };
     view! {
         <aside node_ref=preview_root class="preview-overlay" role="dialog" aria-modal="false" tabindex="-1" aria-label=move || t("Quick Look 预览")>
             <header>
                 <div>
-                    <strong>{clip.title}</strong>
-                    <span>{format!("{} · {}", kind_label(clip.content_kind), clip.source.display_name)}</span>
+                    <strong>{move || clip.get().title}</strong>
+                    <span>{move || clip.with(|item|format!("{} · {}", kind_label(item.content_kind), item.source.display_name))}</span>
                 </div>
                 <button type="button" aria-label=move || t("关闭预览") on:click=move |_| on_close.run(())>"×"</button>
             </header>
             <div class="preview-content">{media}</div>
             <footer>
                 <span>{move || t("Esc 关闭 · Return 粘贴")}</span>
-                {is_image.then(|| view! {
+                {move || is_image().then(|| view! {
                     <div class="preview-actions" aria-label=move || t("图片快速操作")>
                         <button
                             type="button"
@@ -5076,7 +5341,7 @@ fn PreviewOverlay(
                         >{move || if recognizing.get() { t("识别中…") } else { t("提取文字") }}</button>
                     </div>
                 })}
-                {is_link.then(|| view! {
+                {move || is_link().then(|| view! {
                     <div class="preview-actions">
                         <button
                             type="button"

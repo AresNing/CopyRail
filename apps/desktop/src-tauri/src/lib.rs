@@ -54,6 +54,10 @@ mod single_instance;
 mod tray_icon;
 #[allow(unsafe_code)]
 mod window;
+#[allow(unsafe_code)]
+mod workspace;
+#[path = "../../src/workspace_protocol.rs"]
+mod workspace_protocol;
 
 use std::{
     fs,
@@ -213,6 +217,11 @@ fn run_with_profile(native_test: Option<Arc<native_test::NativeTestProfile>>) {
                 commands::trace_native_gesture,
                 commands::get_clip_preview,
                 commands::set_preview_window,
+                workspace::update_workspace,
+                workspace::get_workspace,
+                workspace::present_workspace,
+                workspace::dismiss_workspace,
+                workspace::workspace_key,
                 commands::get_clip_thumbnail,
                 commands::rotate_clip_image,
                 commands::recognize_clip_text,
@@ -289,6 +298,7 @@ fn run_with_profile(native_test: Option<Arc<native_test::NativeTestProfile>>) {
                 drag_session::install(&window, Arc::clone(&drag_sessions), isolated);
             }
             app.manage(window::PreviewFrame::default());
+            app.manage(workspace::WorkspaceState::default());
             app.manage(DesktopState {
                 store,
                 capture,
@@ -300,6 +310,7 @@ fn run_with_profile(native_test: Option<Arc<native_test::NativeTestProfile>>) {
                 native_test: native_test.clone(),
             });
             native_menu::install(app.handle(), isolated)?;
+            workspace::install(app.handle())?;
 
             let show_item =
                 MenuItem::with_id(app, "show", locale::t("显示 CopyRail"), true, None::<&str>)?;

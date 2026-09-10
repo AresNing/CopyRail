@@ -531,6 +531,7 @@ fn apply_native_frame(
         .pending_display
         .store(false, std::sync::atomic::Ordering::Relaxed);
     if frame == current {
+        crate::workspace::position(window.app_handle())?;
         if !preview {
             state.dock.lock().unwrap_or_else(|e| e.into_inner()).applied = Some(current_size);
         }
@@ -547,6 +548,7 @@ fn apply_native_frame(
     // One AppKit update: no queued setContentSize/setFrameTopLeftPoint pair,
     // no intermediate frame, no activation, no system preference changes.
     native.setFrame_display(frame, true);
+    crate::workspace::position(window.app_handle())?;
     if !preview {
         let applied = native.frame().size;
         state.dock.lock().unwrap_or_else(|e| e.into_inner()).applied =
@@ -782,7 +784,7 @@ fn invocation_collection_behavior(
     current
 }
 
-fn configure_spaces(window: &WebviewWindow) -> tauri::Result<()> {
+pub(crate) fn configure_spaces(window: &WebviewWindow) -> tauri::Result<()> {
     #[cfg(target_os = "macos")]
     {
         objc2::MainThreadMarker::new()
@@ -847,7 +849,7 @@ fn application_is_active() -> tauri::Result<bool> {
 /// Debug builds retain a small local trace of our own window flags only. No
 /// clipboard content, window titles, other apps, or desktop identifiers enter it.
 #[cfg(target_os = "macos")]
-fn trace_invocation(
+pub(crate) fn trace_invocation(
     native: &objc2_app_kit::NSWindow,
     mtm: objc2::MainThreadMarker,
     stage: &'static str,
@@ -865,6 +867,7 @@ fn trace_invocation(
         let application = objc2_app_kit::NSApplication::sharedApplication(mtm);
         let record = serde_json::json!({
             "stage": stage,
+            "frame": [native.frame().origin.x, native.frame().origin.y, native.frame().size.width, native.frame().size.height],
             "visible": native.isVisible(),
             "onActiveSpace": native.isOnActiveSpace(),
             "key": native.isKeyWindow(),
@@ -911,7 +914,7 @@ pub fn show_main_window(window: &WebviewWindow) -> tauri::Result<()> {
     present_on_current_space(window)
 }
 
-fn present_on_current_space(window: &WebviewWindow) -> tauri::Result<()> {
+pub(crate) fn present_on_current_space(window: &WebviewWindow) -> tauri::Result<()> {
     #[cfg(target_os = "macos")]
     {
         use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSWindow};
@@ -945,6 +948,7 @@ fn present_on_current_space(window: &WebviewWindow) -> tauri::Result<()> {
 }
 
 pub fn hide_main_window(window: &WebviewWindow) -> tauri::Result<()> {
+    crate::workspace::dismiss(window.app_handle(), false)?;
     window
         .state::<crate::DesktopState>()
         .paste_target
@@ -966,6 +970,9 @@ pub fn apply_desktop_preferences(
     preferences: DesktopPreferences,
 ) -> tauri::Result<()> {
     window.set_content_protected(preferences.screen_share_protection)?;
+    if let Some(aux) = window.app_handle().get_webview_window("workspace") {
+        aux.set_content_protected(preferences.screen_share_protection)?;
+    }
     if let Some(state) = window.app_handle().try_state::<PreviewFrame>() {
         let mut saved = state.saved.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(size) = saved.as_mut() {
@@ -995,7 +1002,10 @@ pub fn toggle_main_window(app: &tauri::AppHandle) -> tauri::Result<()> {
     };
     if should_toggle_hide(
         window.is_visible()?,
-        window.is_focused()?,
+        window.is_focused()?
+            || app
+                .get_webview_window("workspace")
+                .is_some_and(|w| w.is_focused().unwrap_or(false)),
         on_active_space(&window)?,
         application_is_active()?,
         cfg!(target_os = "macos"),

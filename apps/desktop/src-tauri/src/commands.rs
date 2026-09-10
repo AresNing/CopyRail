@@ -124,7 +124,8 @@ pub async fn perform_native_text_action(
     state: State<'_, DesktopState>,
     action: crate::native_menu::EditAction,
 ) -> ApiResult<bool> {
-    if window.label() != "main" || (state.native_test.is_some() && !action.permitted_in_isolation())
+    if !matches!(window.label(), "main" | "workspace")
+        || (state.native_test.is_some() && !action.permitted_in_isolation())
     {
         return Err(ApiError::invalid("隔离验证模式禁止系统剪贴板操作。"));
     }
@@ -1919,7 +1920,12 @@ pub async fn restore_backup(
         .store
         .load_desktop_preferences()
         .map_err(ApiError::storage)?;
-    apply_desktop_preferences(&window, desktop_preferences).map_err(ApiError::storage)?;
+    let main = window
+        .app_handle()
+        .get_webview_window("main")
+        .ok_or_else(|| ApiError::invalid("主窗口不可用"))?;
+    apply_desktop_preferences(&main, desktop_preferences).map_err(ApiError::storage)?;
+    let _ = tauri::Emitter::emit(window.app_handle(), "pasters-preferences-changed", ());
     crate::locale::set_language(desktop_preferences.language);
     let _ = crate::native_menu::relabel(window.app_handle());
     Ok(Some(BackupActionResult {
@@ -1934,11 +1940,15 @@ async fn restore_items(
     mode: paste_platform::ClipboardWriteMode,
     paste: bool,
 ) -> ApiResult<RestoreResult> {
-    if window.label() != "main" || state.native_test.is_some() {
+    if !matches!(window.label(), "main" | "workspace") || state.native_test.is_some() {
         return Err(ApiError::permission(
             "仅正常模式的主窗口可以写回系统剪贴板。",
         ));
     }
+    let window = window
+        .app_handle()
+        .get_webview_window("main")
+        .ok_or_else(|| ApiError::invalid("主窗口不可用"))?;
     // Refuse overlap instead of letting a second copy overwrite a pending
     // paste. Dropping the command/guard does not queue a late, surprise paste.
     let _write_guard = state
@@ -1946,7 +1956,13 @@ async fn restore_items(
         .try_lock()
         .map_err(|_| ApiError::invalid("上一项复制或粘贴仍在处理中，请稍后再试。"))?;
     let invocation = on_restore_main_thread(&window, |window| {
-        ensure_restore_focus(window.is_focused().map_err(ApiError::storage)?)?;
+        ensure_restore_focus(
+            window.is_focused().map_err(ApiError::storage)?
+                || window
+                    .app_handle()
+                    .get_webview_window("workspace")
+                    .is_some_and(|aux| aux.is_focused().unwrap_or(false)),
+        )?;
         window
             .state::<DesktopState>()
             .paste_target
@@ -1963,7 +1979,13 @@ async fn restore_items(
     let write_invocation = invocation.clone();
     let (clipboard_change_count, attempt) = on_restore_main_thread(&window, move |window| {
         let state = window.state::<DesktopState>();
-        ensure_restore_focus(window.is_focused().map_err(ApiError::storage)?)?;
+        ensure_restore_focus(
+            window.is_focused().map_err(ApiError::storage)?
+                || window
+                    .app_handle()
+                    .get_webview_window("workspace")
+                    .is_some_and(|aux| aux.is_focused().unwrap_or(false)),
+        )?;
         if !state
             .paste_target
             .is_current(&write_invocation)
@@ -2169,6 +2191,7 @@ pub fn set_language(
     if let Err(error) = crate::native_menu::relabel(&app) {
         eprintln!("Could not refresh native menu language: {error}");
     }
+    let _ = tauri::Emitter::emit(&app, "pasters-preferences-changed", ());
     Ok(settings)
 }
 
@@ -2219,10 +2242,13 @@ fn read_desktop_preferences(
 #[tauri::command]
 pub fn update_desktop_preferences(
     app: AppHandle,
-    window: WebviewWindow,
+    _window: WebviewWindow,
     state: State<'_, DesktopState>,
     request: DesktopPreferences,
 ) -> ApiResult<DesktopPreferences> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| ApiError::invalid("主窗口不可用"))?;
     let mut previous = state
         .store
         .load_desktop_preferences()
@@ -2240,7 +2266,10 @@ pub fn update_desktop_preferences(
         return Err(ApiError::storage(error));
     }
     match state.store.save_desktop_preferences(request) {
-        Ok(saved) => Ok(saved),
+        Ok(saved) => {
+            let _ = tauri::Emitter::emit(&app, "pasters-preferences-changed", ());
+            Ok(saved)
+        }
         Err(error) => {
             if autostart_changed {
                 let _ = apply_autostart(&app, previous.launch_at_login);

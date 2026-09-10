@@ -48,7 +48,7 @@ Hiding the rail leaves capture running. Pause capture in Settings or the menu ba
 
 ## Status and platform
 
-CopyRail is an **early source MVP**, developed and tested on Apple Silicon macOS. The latest local iteration is **0.1.0-local-beta.16**. There is no Developer ID-signed, notarized binary release yet.
+CopyRail is an **early source MVP**, developed and tested on Apple Silicon macOS. The latest local iteration is **0.1.0-local-beta.17**. There is no Developer ID-signed, notarized binary release yet.
 
 The implemented features above are not a claim of complete daily-use validation. Full cross-app paste and drag/drop coverage, complex rich-text fidelity, full-screen Spaces, multiple displays and VoiceOver still have open acceptance items. Shared pinboards, multi-device sync and mobile clients are outside this MVP. See the [verification record](docs/verification.md) for the tested scope.
 

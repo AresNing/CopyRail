@@ -244,6 +244,11 @@ pub fn allows_command(command: &str) -> bool {
             | "show_clip_context_menu" // Read-only snapshot and native choice, no direct action.
             | "trace_native_gesture" // Typed metadata, isolated-only and bounded per profile.
             | "get_clip_preview"
+            | "update_workspace"
+            | "get_workspace"
+            | "present_workspace"
+            | "dismiss_workspace"
+            | "workspace_key"
             | "set_preview_window" // Main-window geometry only; no external data or clipboard.
             | "get_clip_thumbnail"
             | "get_source_icons" // Existing synthetic clip IDs only; installed icon metadata, no launch.

@@ -92,8 +92,10 @@ pub fn install(app: &AppHandle, isolated: bool) -> tauri::Result<()> {
         let Some(action) = EditAction::from_menu_id(event.id().as_ref()) else {
             return;
         };
-        if let Some(main) = app.get_webview_window("main")
-            && main.is_focused().unwrap_or(false)
+        if let Some(main) = ["main", "workspace"]
+            .into_iter()
+            .filter_map(|label| app.get_webview_window(label))
+            .find(|window| window.is_focused().unwrap_or(false))
         {
             if isolated {
                 eprintln!("Native UI test menu: {action:?}");

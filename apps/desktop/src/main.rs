@@ -3,6 +3,9 @@ mod i18n;
 
 #[cfg(target_arch = "wasm32")]
 mod app;
+#[cfg(any(target_arch = "wasm32", test))]
+#[allow(dead_code)]
+mod workspace_protocol;
 
 #[cfg(target_arch = "wasm32")]
 mod context_action;

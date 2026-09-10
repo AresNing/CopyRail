@@ -85,6 +85,8 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
       members.set(board.id, []);
     }
   }
+  window.__copyrailWorkspaceRole = new URLSearchParams(location.search).get('window_role') ?? 'embedded';
+  window.workspaceFixture = { calls: [], state: { revision: 0, content: { kind: 'closed' } }, presented: false, delayMs: 0 };
   const listeners = new Map();
   const emit = (name, payload) => { for (const handler of listeners.get(name) ?? []) handler({ payload }); };
   const state = {
@@ -126,6 +128,28 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
     return () => listeners.get(name).delete(handler);
   } }, core: { invoke: async (command, args) => {
     switch (command) {
+      case 'update_workspace': {
+        window.workspaceFixture.calls.push({command,args:structuredClone(args)});
+        if(window.workspaceFixture.delayMs)await new Promise(r=>setTimeout(r,window.workspaceFixture.delayMs));
+        window.workspaceFixture.state={revision:window.workspaceFixture.state.revision+1,content:structuredClone(args.request)};
+        if(args.request.kind==='closed')window.workspaceFixture.presented=false;
+        return null;
+      }
+      case 'get_workspace': return structuredClone(window.workspaceFixture.state);
+      case 'present_workspace': {
+        window.workspaceFixture.calls.push({command,args:structuredClone(args)});
+        if(args.revision===window.workspaceFixture.state.revision && window.workspaceFixture.state.content.kind!=='closed')window.workspaceFixture.presented=true;
+        return null;
+      }
+      case 'dismiss_workspace': {
+        window.workspaceFixture.calls.push({command,args});
+        window.workspaceFixture.state={revision:window.workspaceFixture.state.revision+1,content:{kind:'closed'}};
+        window.workspaceFixture.presented=false;
+        emit('pasters-workspace',window.workspaceFixture.state);
+        return null;
+      }
+      case 'workspace_key': window.workspaceFixture.calls.push({command,args:structuredClone(args)});return null;
+
       case 'perform_native_text_action':
       case 'undo_last_delete':
       case 'restore_clip':

@@ -1,0 +1,64 @@
+// Exercise both production window roles against synthetic IPC, not the legacy
+// embedded screenshot renderer. AppKit frames are validated separately.
+import assert from 'node:assert/strict';
+import {readFile,readdir,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {join} from 'node:path';
+import {withCompiledUiTest} from './compiled-ui-test.mjs';
+const root=new URL('../apps/desktop/dist/',import.meta.url);
+const fingerprint=async()=>Object.fromEntries(await Promise.all((await readdir(root)).filter(n=>/\.(wasm|css|js|html)$/.test(n)).sort().map(async n=>[n,createHash('sha256').update(await readFile(new URL(n,root))).digest('hex')])));
+const assets=await fingerprint();
+await withCompiledUiTest(async({page,evaluate,waitFor,fixture,screenshot,artifacts,browser})=>{
+ const size=(width,height)=>page('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
+ const key=async(key,code,virtual)=>{for(const type of ['keyDown','keyUp'])await page('Input.dispatchKeyEvent',{type,key,code,windowsVirtualKeyCode:virtual});};
+ await size(1440,148);
+ await page('Page.navigate',{url:fixture+'/?fixture=visual&compact=1&window_role=main'});
+ await waitFor(`document.querySelectorAll('.clip-card').length===8`);
+ const geometry=await evaluate(`JSON.stringify(document.querySelector('.dock-surface').getBoundingClientRect())`);
+ await evaluate(`window.workspaceFixture.delayMs=100;document.querySelector('.settings-button').click()`);
+ await waitFor(`window.workspaceFixture.state.content.kind==='settings'`);
+ assert.equal(await evaluate(`document.querySelector('.settings-popover')===null && window.previewFrameFixture.calls.length===0`),true);
+ assert.equal(await evaluate(`JSON.stringify(document.querySelector('.dock-surface').getBoundingClientRect())`),geometry);
+ await evaluate(`window.dragEventFixture.emit('pasters-close-preview',null)`);
+ await waitFor(`window.workspaceFixture.state.content.kind==='closed'`);
+ await evaluate(`document.querySelector('#history-results').focus()`);await key(' ','Space',32);
+ await waitFor(`window.workspaceFixture.state.content.kind==='preview'`);
+ const first=await evaluate(`window.workspaceFixture.state.content.clip.id`);
+ await evaluate(`window.dragEventFixture.emit('pasters-workspace-key',{key:'ArrowRight',shift:false,meta:false})`);
+ await waitFor(`window.workspaceFixture.state.content.kind==='preview' && window.workspaceFixture.state.content.clip.id!==${JSON.stringify(first)}`);
+ assert.equal(await evaluate(`JSON.stringify(document.querySelector('.dock-surface').getBoundingClientRect())`),geometry);
+ assert.equal(await evaluate(`window.previewFrameFixture.calls.length`),0);
+ await screenshot('detached-rail.png');
+ // Auxiliary: same mounted dialog across item changes, stale ready rejection,
+ // retained drafts across close/open, and no hidden duplicate history polling.
+ await size(760,348);await page('Page.navigate',{url:fixture+'/?fixture=visual&window_role=workspace'});
+ await waitFor(`document.querySelector('.auxiliary-workspace')`);
+ const send=async(content)=>evaluate(`(()=>{const w=window.workspaceFixture;w.state={revision:w.state.revision+1,content:${content}};if(w.state.content.kind==='closed')w.presented=false;window.dragEventFixture.emit('pasters-workspace',w.state)})()`);
+ await send(`{kind:'preview',clip:window.sourceIconFixture.clips[0]}`);
+ await waitFor(`document.querySelector('.preview-overlay') && window.workspaceFixture.presented`);
+ await evaluate(`window.savedPreviewRoot=document.querySelector('.preview-overlay')`);
+ await send(`{kind:'preview',clip:window.sourceIconFixture.clips[1]}`);
+ await waitFor(`document.querySelector('.preview-overlay header strong').textContent==='Documentation'`);
+ assert.equal(await evaluate(`window.savedPreviewRoot===document.querySelector('.preview-overlay')`),true);
+ assert.equal(await evaluate(`document.querySelector('.dock-surface').checkVisibility()`),false);
+ await key('ArrowRight','ArrowRight',39);
+ await waitFor(`window.workspaceFixture.calls.some(x=>x.command==='workspace_key' && x.args.request.key==='ArrowRight')`);
+ await send(`{kind:'settings',tab:'history'}`);
+ await waitFor(`document.querySelector('.settings-page[data-settings-page="history"]')?.checkVisibility()`);
+ await evaluate(`(()=>{const e=document.querySelector('.settings-page[data-settings-page="history"] input');e.value='42';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+ await waitFor(`document.activeElement?.closest('.settings-popover')`);
+ await key('Escape','Escape',27);await waitFor(`window.workspaceFixture.state.content.kind==='closed'`);
+ await send(`{kind:'settings',tab:'history'}`);
+ await waitFor(`document.querySelector('.settings-popover') && window.workspaceFixture.presented`);
+ assert.equal(await evaluate(`document.querySelector('.settings-page[data-settings-page="history"] input').value`),'42');
+ await screenshot('detached-settings.png');
+ await send(`{kind:'preview',clip:window.sourceIconFixture.clips[0]}`);
+ const stale=await evaluate(`window.workspaceFixture.state.revision`);
+ await send(`{kind:'closed'}`);
+ await evaluate(`window.__TAURI__.core.invoke('present_workspace',{revision:${stale}})`);
+ assert.equal(await evaluate(`window.workspaceFixture.state.content.kind==='closed' && !window.workspaceFixture.presented`),true);
+ assert.equal(await evaluate(`window.previewFrameFixture.calls.length`),0);
+ assert.deepEqual(await fingerprint(),assets);
+ await writeFile(join(artifacts,'detached-workspace-report.json'),JSON.stringify({result:'passed',browser,assetSha256:assets,nativeEndToEnd:false,checks:['both production window roles','rail geometry fixed with zero resize requests','navigation returns to rail selection','preview root reused','settings drafts retained across close/open','stale readiness cannot reopen a closed workspace']},null,2)+'\n');
+ console.log('Detached workspace checks passed.');
+});
