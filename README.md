@@ -12,7 +12,7 @@ CopyRail keeps the things you copy in a searchable card rail. Find a snippet, pr
 
 ![CopyRail clipboard rail with sample notes, a link, an illustration, a color and code](docs/images/clipboard-dark.png)
 
-*English interface at **100% background transparency**, with synthetic demo content and a synthetic backdrop. [Screenshot details](docs/images/README.md).*
+*English interface at **50% background transparency**, with synthetic demo content and a synthetic backdrop. [Screenshot details](docs/images/README.md).*
 
 ## What you can do
 
@@ -22,7 +22,7 @@ CopyRail keeps the things you copy in a searchable card rail. Find a snippet, pr
 - **Reuse more than text.** Work with plain text, HTML, links, images, files, PDFs and colors.
 - **Paste one item at a time.** Add cards to a paste queue for filling several fields in a chosen order. Plain-text output is available too.
 - **Choose your language.** By default, CopyRail follows your system language: Chinese uses Simplified Chinese; other languages use English. Choose System default, English or Simplified Chinese in Settings → General → Language. Manual choices are saved immediately and preserved on launch.
-- **Adjust the glass background.** Settings → General → Background transparency ranges from an opaque surface to clear macOS frosted glass. The default is 50%; the screenshots demonstrate 100%. Changes save automatically across the rail, settings and preview, while text and controls stay solid. System reduced-transparency preferences take priority.
+- **Adjust the glass background.** Settings → General → Background transparency ranges from an opaque surface to clear macOS frosted glass. The default is 50%; the screenshots demonstrate 50%. Changes save automatically across the rail, settings and preview, while text and controls stay solid. System reduced-transparency preferences take priority.
 - **Choose where the rail opens.** Settings → General → Selection on open offers Latest item (default) or Last position. Last position remembers the selected card and browsing context across restarts; new captures do not change the remembered card. Missing items return to the latest history. The setting saves automatically and applies on the next invocation.
 - **Choose what stays.** Pause capture, exclude apps, set retention limits, and export or restore a local backup.
 - **Work from the keyboard.** Open the rail with `⇧⌘V`, navigate with the arrow keys, preview with `Space`, and copy with `⌘C`.

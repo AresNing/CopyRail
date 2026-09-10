@@ -2,6 +2,10 @@
 
 Current release: **1.0.0 (2026-09-10)**. Earlier dated entries are historical snapshots. This record separates automated checks from native acceptance and distribution readiness.
 
+## README at 50% transparency (2026-09-10)
+
+Both READMEs and all four demonstration screenshots now use 50% background transparency, replacing the previous 100% presentation. The capture script selects English and 50% through the production Settings controls in the isolated synthetic fixture, using the existing optimized 1.0.0 frontend. Screenshot checks passed for the saved value, background-opacity 0.5 and actual panel alpha 0.5 in all four frames; visible copy was English and compiled asset hashes were unchanged. All four screenshots were visually inspected. The synthetic backdrop and browser-versus-native compositing boundary remain documented in docs/images/README.md. This documentation-only change does not modify the installed application's preferences, restart it, or replace the published 1.0.0 binaries/tag.
+
 ## CopyRail 1.0.0 downloadable release (2026-09-10)
 
 Version 1.0.0 promotes the current feature set to the first downloadable release. All eight workspace crates, Cargo.lock and the Tauri bundle version are 1.0.0. The application identifier and local storage/backup formats are unchanged. Public builds use optimized Rust/WASM, disable the experimental CloudKit transport, and use an empty entitlement file rather than requesting iCloud access. The native binary is arm64 with a macOS 13.0 deployment target. Intel installers are not supplied; native acceptance below was performed on macOS 26.5.1, not every earlier deployment target.
