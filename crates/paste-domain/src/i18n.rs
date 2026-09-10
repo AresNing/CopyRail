@@ -331,6 +331,14 @@ pub fn translate(language: Language, source: &str) -> &str {
             "Saves automatically and applies to all windows."
         }
         "正在保存外观…" => "Saving appearance…",
+        "请输入正整数，留空表示不限。" => {
+            "Enter a positive whole number, or leave blank for no limit."
+        }
+        "请输入有效的应用 Bundle ID。" => "Enter a valid app bundle ID.",
+        "重试" => "Retry",
+        "隔离验证不能修改登录启动。" => {
+            "Isolated verification cannot change login startup."
+        }
         "外观保存失败，请重试。" => "Could not save appearance. Try again.",
         "顺序粘贴说明" => "About the paste queue",
         "点卡片上的「＋」按顺序加入待粘贴列表。列表有内容时，回车优先粘贴第一条；再次唤起后可继续下一条。" => {

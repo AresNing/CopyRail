@@ -1958,3 +1958,66 @@ fn opening_position_upgrades_and_bookmark_survives_restart_without_clobbering_pr
         serde_json::from_str::<DesktopPreferences>(r#"{"opening_position":"unknown"}"#).is_err()
     );
 }
+
+#[test]
+fn desktop_option_saves_merge_with_latest_preferences_and_survive_restart() {
+    use paste_domain::{DesktopOption, DesktopOptionUpdate, OpeningPosition};
+    let directory = tempfile::tempdir().expect("synthetic option fixture");
+    let path = directory.path().join("history.db");
+    let store = SqliteStore::open(&path).expect("synthetic option fixture");
+    let initial = DesktopPreferences {
+        background_transparency: 80,
+        language: paste_domain::LanguagePreference::English,
+        opening_position: OpeningPosition::Last,
+        ..Default::default()
+    };
+    store
+        .save_desktop_preferences(initial)
+        .expect("synthetic option fixture");
+    for option in [
+        DesktopOption::CompactMode,
+        DesktopOption::ScreenShareProtection,
+        DesktopOption::LaunchAtLogin,
+    ] {
+        store
+            .save_desktop_option(DesktopOptionUpdate {
+                option,
+                enabled: true,
+            })
+            .expect("synthetic option fixture");
+    }
+    drop(store);
+    let store = SqliteStore::open(&path).expect("synthetic option fixture");
+    let saved = store
+        .load_desktop_preferences()
+        .expect("synthetic option fixture");
+    assert_eq!(
+        saved,
+        DesktopPreferences {
+            compact_mode: true,
+            screen_share_protection: true,
+            launch_at_login: true,
+            ..initial
+        }
+    );
+    let sql = rusqlite::Connection::open(&path).expect("synthetic option fixture");
+    sql.execute_batch("CREATE TRIGGER reject_option BEFORE UPDATE ON settings WHEN NEW.key = 'desktop_preferences' BEGIN SELECT RAISE(ABORT, 'synthetic write failure'); END;").expect("synthetic option fixture");
+    assert!(
+        store
+            .save_desktop_option(DesktopOptionUpdate {
+                option: DesktopOption::CompactMode,
+                enabled: false
+            })
+            .is_err()
+    );
+    assert_eq!(
+        store
+            .load_desktop_preferences()
+            .expect("synthetic option fixture"),
+        saved
+    );
+    assert!(
+        serde_json::from_str::<DesktopOptionUpdate>(r#"{"option":"unknown","enabled":true}"#)
+            .is_err()
+    );
+}

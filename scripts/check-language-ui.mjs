@@ -23,13 +23,13 @@ await withCompiledUiTest(async({page,evaluate,waitFor,fixture,artifacts,screensh
     await openSettings();
     if(await evaluate(`document.documentElement.lang==='en'`)) {await choose('zh-CN');await waitFor(`document.documentElement.lang==='zh-CN'`);}
     // Preserve settings drafts and DOM identity across a successful locale change.
-    await evaluate(`(()=>{window.oldLanguageSelect=document.querySelector('.language-select');window.oldSettings=document.querySelector('.settings-popover');document.querySelector('[data-settings-page="general"] input[type="checkbox"]').click();window.languageFixture.delayMs=400;})()`);
+    await evaluate(`(()=>{window.oldLanguageSelect=document.querySelector('.language-select');window.oldSettings=document.querySelector('.settings-popover');if(!document.querySelector('[data-settings-page="general"] input[type="checkbox"]').checked)document.querySelector('[data-settings-page="general"] input[type="checkbox"]').click();window.languageFixture.delayMs=400;})()`);
     await choose('en');
     await waitFor(`document.querySelector('.language-select').disabled`);
     await waitFor(`document.documentElement.lang==='en' && !document.querySelector('.language-select').disabled`);
     assert.equal(await evaluate(`document.querySelector('.language-select')===window.oldLanguageSelect && document.querySelector('.settings-popover')===window.oldSettings`),true);
     assert.equal(await evaluate(`document.querySelector('[data-settings-page="general"] input[type="checkbox"]').checked`),true);
-    assert.equal(await evaluate(`document.querySelector('.search-field input, input[type="search"]').placeholder`),'Search clipboard history');
+    assert.equal(await evaluate(`document.querySelector('.search-field input, input[type="search"]').placeholder`),'');
     for(let tab=0;tab<5;tab++){
       await evaluate(`document.querySelectorAll('.settings-nav button')[${tab}].click()`);
       await englishCopy(`.settings-page:not([hidden])`);

@@ -185,3 +185,35 @@ pub struct RailPosition {
     pub context: SearchContext,
     pub clip_id: crate::ClipId,
 }
+
+/// One immediate settings edit. Other saved preferences remain untouched.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Hash, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DesktopOption {
+    LaunchAtLogin,
+    CompactMode,
+    ScreenShareProtection,
+}
+
+impl DesktopOption {
+    pub fn value(self, preferences: &DesktopPreferences) -> bool {
+        match self {
+            Self::LaunchAtLogin => preferences.launch_at_login,
+            Self::CompactMode => preferences.compact_mode,
+            Self::ScreenShareProtection => preferences.screen_share_protection,
+        }
+    }
+    pub fn apply(self, preferences: &mut DesktopPreferences, enabled: bool) {
+        match self {
+            Self::LaunchAtLogin => preferences.launch_at_login = enabled,
+            Self::CompactMode => preferences.compact_mode = enabled,
+            Self::ScreenShareProtection => preferences.screen_share_protection = enabled,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DesktopOptionUpdate {
+    pub option: DesktopOption,
+    pub enabled: bool,
+}

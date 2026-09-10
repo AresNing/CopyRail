@@ -1704,6 +1704,30 @@ impl SqliteStore {
         Ok(value)
     }
 
+    pub fn save_desktop_option(
+        &self,
+        value: paste_domain::DesktopOptionUpdate,
+    ) -> Result<DesktopPreferences, StorageError> {
+        let connection = self.lock()?;
+        let json = connection
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'desktop_preferences'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        let mut preferences = match json {
+            Some(json) => serde_json::from_str::<DesktopPreferences>(&json)
+                .map_err(|error| corrupt("desktop preferences", error))?,
+            None => DesktopPreferences::default(),
+        };
+        value.option.apply(&mut preferences, value.enabled);
+        let json = serde_json::to_string(&preferences)
+            .map_err(|error| corrupt("desktop preferences", error))?;
+        connection.execute("INSERT INTO settings (key, value, updated_at_ms) VALUES ('desktop_preferences', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at_ms = excluded.updated_at_ms", params![json, Utc::now().timestamp_millis()])?;
+        Ok(preferences)
+    }
+
     pub fn load_rail_position(&self) -> Result<Option<paste_domain::RailPosition>, StorageError> {
         let connection = self.lock()?;
         let json = connection

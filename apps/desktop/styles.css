@@ -1105,15 +1105,6 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
   background: rgba(255, 59, 48, 0.09);
 }
 
-.save-settings {
-  height: 27px;
-  border: 0;
-  border-radius: 8px;
-  color: var(--primary-text);
-  background: var(--primary-surface);
-  font-size: 10px;
-  font-weight: 650;
-}
 
 .card-track {
   height: 100%;
@@ -2171,7 +2162,7 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 .expanded-workspace .settings-popover {
   width: min(760px, calc(100% - 24px));
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   padding: 0;
   gap: 0;
@@ -2234,9 +2225,6 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 .settings-page .permission-help { font-size: 11px; line-height: 1.6; }
 .permission-troubleshooting { margin-top: 10px; font-size: 11px; color: var(--muted); }
 .permission-troubleshooting summary { cursor: pointer; }
-.settings-popover > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 18px; border-top: 0; }
-.settings-popover > footer > span { font-size: 10px; color: var(--muted); }
-.settings-popover .save-settings { width: auto; margin: 0; padding: 7px 16px; }
 @media (max-width: 600px) {
   .settings-layout { grid-template-columns: 96px minmax(0, 1fr); }
   .settings-content { padding: 12px; }
@@ -2295,7 +2283,6 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 .settings-popover .settings-page strong { font-weight: 500; }
 .settings-popover .settings-page > label > span { font-weight: 500; }
 .settings-popover .settings-page :is(p, small, .settings-description, .permission-help, .permission-troubleshooting, .keyboard-reference, .sync-heading span, .mcp-heading span, .backup-settings span, .shortcut-status span, .permission-summary span, .mcp-empty, .mcp-config-once span) { font-size: 12px; font-weight: 400; line-height: 1.5; }
-.settings-popover > footer > span { font-size: 12px; line-height: 1.5; }
 .settings-popover .settings-page > .appearance-setting { grid-template-columns: minmax(0, 1fr) 180px; gap: 20px; }
 .appearance-setting > span { display: grid; gap: 3px; }
 .appearance-setting small { color: var(--muted); }
@@ -2322,3 +2309,8 @@ button.shortcut-hint:focus-visible { outline: 2px solid var(--selected); outline
 }
 .settings-popover button { font-weight: 500; }
 .settings-popover :is(.permission-state, .mcp-client-row, .sync-conflict-copy dt, .sync-conflict-copy dd, .shared-conflict-list, .shared-conflict-list > span) { font-size: 12px; line-height: 1.5; }
+
+/* The search icon also opens filters; the input stays visually quiet. */
+.search-wrap .search-icon { font-size: 18px; line-height: 1; flex: 0 0 22px; width: 22px; height: 22px; padding: 0; background: transparent; color: var(--muted); }
+.search-wrap .search-icon:hover, .search-wrap .search-icon.active { background: var(--surface-hover, rgba(128,128,128,.18)); color: var(--text); }
+.settings-save-error { color: var(--danger-text); font-size: 12px; }

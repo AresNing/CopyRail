@@ -11,8 +11,8 @@ use gloo_timers::future::TimeoutFuture;
 use js_sys::Promise;
 use leptos::{ev, html, prelude::*, task::spawn_local};
 use paste_domain::{
-    CapturePreferences, ClipId, ClipItem, ContentKind, DesktopPreferences, DeviceId, Pinboard,
-    PinboardId, RetentionPolicy, SearchFacets,
+    CapturePreferences, ClipId, ClipItem, ContentKind, DesktopOption, DesktopOptionUpdate,
+    DesktopPreferences, DeviceId, Pinboard, PinboardId, SearchFacets,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use wasm_bindgen::prelude::*;
@@ -838,6 +838,105 @@ pub fn App() -> impl IntoView {
         });
     };
     let (applied_compact, set_applied_compact) = signal(false);
+    let desktop_options_saving = RwSignal::new(HashSet::<DesktopOption>::new());
+    let desktop_save_error = RwSignal::new(None::<String>);
+    let change_desktop_option = Callback::new(move |(option, enabled): (DesktopOption, bool)| {
+        if desktop_options_saving.with_untracked(|busy| busy.contains(&option)) {
+            return;
+        }
+        let previous = option.value(&desktop_preferences.get_untracked());
+        desktop_options_saving.update(|busy| {
+            busy.insert(option);
+        });
+        desktop_save_error.set(None);
+        set_desktop_preferences.update(|draft| option.apply(draft, enabled));
+        spawn_local(async move {
+            match invoke::<DesktopPreferences>(
+                "set_desktop_option",
+                &CommandArgs {
+                    request: DesktopOptionUpdate { option, enabled },
+                },
+            )
+            .await
+            {
+                Ok(saved) => {
+                    set_desktop_preferences
+                        .update(|draft| option.apply(draft, option.value(&saved)));
+                    if option == DesktopOption::CompactMode {
+                        set_applied_compact.set(saved.compact_mode);
+                    }
+                }
+                Err(message) => {
+                    set_desktop_preferences.update(|draft| option.apply(draft, previous));
+                    desktop_save_error.set(Some(message));
+                }
+            }
+            desktop_options_saving.update(|busy| {
+                busy.remove(&option);
+            });
+        });
+    });
+    let capture_edit_epoch = RwSignal::new(0_u64);
+    let capture_save_error = RwSignal::new(None::<String>);
+    let invalid_days = RwSignal::new(false);
+    let invalid_items = RwSignal::new(false);
+    // Only explicit input starts this worker; loading preferences never writes them.
+    // A single worker serializes snapshots, and a revision guards newer typing.
+    let save_capture_draft = Callback::new(move |()| {
+        capture_edit_epoch.update(|value| *value += 1);
+        capture_save_error.set(None);
+        if settings_saving.get_untracked() {
+            return;
+        }
+        settings_saving.set(true);
+        spawn_local(async move {
+            loop {
+                let epoch = capture_edit_epoch.get_untracked();
+                TimeoutFuture::new(350).await;
+                if capture_edit_epoch.get_untracked() != epoch {
+                    continue;
+                }
+                let request = if invalid_days.get_untracked() || invalid_items.get_untracked() {
+                    Err(t("请输入正整数，留空表示不限。").to_owned())
+                } else {
+                    crate::settings::capture_draft(
+                        &retention_days.get_untracked(),
+                        &retention_items.get_untracked(),
+                        &excluded_apps.get_untracked(),
+                    )
+                    .map_err(|message| t(message).to_owned())
+                };
+                match request {
+                    Err(message) => capture_save_error.set(Some(message)),
+                    Ok(request) => {
+                        match invoke::<CapturePreferences>(
+                            "update_capture_preferences",
+                            &CommandArgs { request },
+                        )
+                        .await
+                        {
+                            Ok(saved) if capture_edit_epoch.get_untracked() == epoch => {
+                                set_retention_days
+                                    .set(optional_number(saved.retention.max_age_days));
+                                set_retention_items
+                                    .set(optional_number(saved.retention.max_unpinned_items));
+                                set_excluded_apps.set(saved.excluded_bundle_ids.join("\n"));
+                            }
+                            Err(message) if capture_edit_epoch.get_untracked() == epoch => {
+                                capture_save_error.set(Some(message))
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                if capture_edit_epoch.get_untracked() == epoch {
+                    break;
+                }
+            }
+            settings_saving.set(false);
+        });
+    });
+
     let (previews, set_previews) = signal(HashMap::<ClipId, PreviewResult>::new());
     let (preview_loading, set_preview_loading) = signal(HashSet::<ClipId>::new());
     let preview_attempts = RwSignal::new(HashMap::<ClipId, ([u8; 32], f64)>::new());
@@ -3038,6 +3137,11 @@ pub fn App() -> impl IntoView {
     };
 
     let restore_backup = move |_| {
+        if settings_saving.get_untracked()
+            || desktop_options_saving.with_untracked(|busy| !busy.is_empty())
+        {
+            return;
+        }
         spawn_local(async move {
             match invoke::<Option<BackupActionResult>>("restore_backup", &EmptyArgs {}).await {
                 Ok(Some(result)) => {
@@ -3055,6 +3159,10 @@ pub fn App() -> impl IntoView {
                         set_retention_items
                             .set(optional_number(preferences.retention.max_unpinned_items));
                         set_excluded_apps.set(preferences.excluded_bundle_ids.join("\n"));
+                        invalid_days.set(false);
+                        invalid_items.set(false);
+                        capture_save_error.set(None);
+                        desktop_save_error.set(None);
                     }
                     if let Ok(preferences) =
                         invoke::<DesktopPreferences>("get_desktop_preferences", &EmptyArgs {}).await
@@ -3322,74 +3430,6 @@ pub fn App() -> impl IntoView {
             }
         });
     });
-
-    let save_settings = move |_| {
-        if language_saving.get_untracked()
-            || settings_saving.get_untracked()
-            || opening_saving.get_untracked()
-        {
-            return;
-        }
-        let capture_preferences = CapturePreferences {
-            retention: RetentionPolicy {
-                max_age_days: parse_optional_positive(&retention_days.get_untracked()),
-                max_unpinned_items: parse_optional_positive(&retention_items.get_untracked()),
-            },
-            excluded_bundle_ids: excluded_apps
-                .get_untracked()
-                .lines()
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(ToOwned::to_owned)
-                .collect(),
-        };
-        let desktop_request = desktop_preferences.get_untracked();
-        settings_saving.set(true);
-        spawn_local(async move {
-            match invoke::<CapturePreferences>(
-                "update_capture_preferences",
-                &CommandArgs {
-                    request: capture_preferences,
-                },
-            )
-            .await
-            {
-                Ok(saved_capture) => {
-                    match invoke::<DesktopPreferences>(
-                        "update_desktop_preferences",
-                        &CommandArgs {
-                            request: desktop_request,
-                        },
-                    )
-                    .await
-                    {
-                        Ok(saved_desktop) => {
-                            set_retention_days
-                                .set(optional_number(saved_capture.retention.max_age_days));
-                            set_retention_items
-                                .set(optional_number(saved_capture.retention.max_unpinned_items));
-                            set_excluded_apps.set(saved_capture.excluded_bundle_ids.join("\n"));
-                            set_desktop_preferences.set(saved_desktop);
-                            set_applied_compact.set(saved_desktop.compact_mode);
-                            if let Ok(settings) = invoke::<paste_domain::LanguageSettings>(
-                                "get_language_settings",
-                                &EmptyArgs {},
-                            )
-                            .await
-                            {
-                                crate::i18n::set_language(settings.effective);
-                            }
-                            set_settings_open.set(false);
-                            set_error.set(None);
-                        }
-                        Err(message) => set_error.set(Some(message)),
-                    }
-                }
-                Err(message) => set_error.set(Some(message)),
-            }
-            settings_saving.set(false);
-        });
-    };
 
     let create_pinboard = move |_| {
         let request = PinboardRequest {
@@ -4183,31 +4223,15 @@ pub fn App() -> impl IntoView {
                     <strong>"CopyRail"</strong>
                 </div>
                 <div class="search-wrap">
-                    <span class="search-icon" aria-hidden="true">"⌕"</span>
-                    <input
-                        node_ref=search_input
-                        id="history-search"
-                        aria-controls="history-results"
-                        aria-label=move || t("搜索剪贴板历史")
-                        type="search"
-                        placeholder=move || t("搜索复制过的内容")
-                        prop:value=move || query.get()
-                        on:input=move |event| {
-                            set_query.set(event_target_value(&event));
-                            set_history_offset.set(0);
-                            set_selected.set(0);
-                            set_selected_ids.set(HashSet::new());
-                            set_selection_anchor.set(0);
-                        }
-                    />
                     <button
-                        class="filter-toggle"
+                        class="search-icon filter-toggle"
                         class:active=move || {
                             active_kind.get().is_some()
                                 || active_source.get().is_some()
                                 || active_device.get().is_some()
                                 || date_days.get().is_some()
                         }
+                        aria-expanded=move || filter_menu_open.get()
                         type="button"
                         aria-label=move || t("按内容类型筛选")
                         title=move || t("按内容类型筛选")
@@ -4218,14 +4242,24 @@ pub fn App() -> impl IntoView {
                             set_pin_menu_open.set(false);
                         }
                     >
-                        {move || {
-                            let count = usize::from(active_kind.get().is_some())
-                                + usize::from(active_source.get().is_some())
-                                + usize::from(active_device.get().is_some())
-                                + usize::from(date_days.get().is_some());
-                            if count == 0 { t("筛选").into() } else { localized_format!("筛选 {count}", "Filter {count}") }
-                        }}
+                        "⌕"
                     </button>
+                    <input
+                        node_ref=search_input
+                        id="history-search"
+                        aria-controls="history-results"
+                        aria-label=move || t("搜索剪贴板历史")
+                        type="search"
+                        prop:value=move || query.get()
+                        on:input=move |event| {
+                            set_query.set(event_target_value(&event));
+                            set_history_offset.set(0);
+                            set_selected.set(0);
+                            set_selected_ids.set(HashSet::new());
+                            set_selection_anchor.set(0);
+                        }
+                    />
+
                 </div>
                 <div class="toolbar-actions">
                     <button
@@ -4999,9 +5033,8 @@ pub fn App() -> impl IntoView {
                         <input
                             type="checkbox"
                             prop:checked=move || desktop_preferences.get().launch_at_login
-                            on:change=move |event| set_desktop_preferences.update(|value| {
-                                value.launch_at_login = event_target_checked(&event);
-                            })
+                            disabled=move || desktop_options_saving.with(|busy| busy.contains(&DesktopOption::LaunchAtLogin))
+                            on:change=move |event| change_desktop_option.run((DesktopOption::LaunchAtLogin, event_target_checked(&event)))
                         />
                     </label>
                     <label class="toggle-setting">
@@ -5009,11 +5042,11 @@ pub fn App() -> impl IntoView {
                         <input
                             type="checkbox"
                             prop:checked=move || desktop_preferences.get().compact_mode
-                            on:change=move |event| set_desktop_preferences.update(|value| {
-                                value.compact_mode = event_target_checked(&event);
-                            })
+                            disabled=move || desktop_options_saving.with(|busy| busy.contains(&DesktopOption::CompactMode))
+                            on:change=move |event| change_desktop_option.run((DesktopOption::CompactMode, event_target_checked(&event)))
                         />
                     </label>
+                    {move || desktop_save_error.get().map(|message| view! { <p class="settings-save-error" role="alert">{message}</p> })}
                     <section class="queue-help" aria-label=move || t("顺序粘贴说明")>
                         <strong>{move || t("顺序粘贴")}</strong>
                         <p>{move || t("点卡片上的「＋」按顺序加入待粘贴列表。列表有内容时，回车优先粘贴第一条；再次唤起后可继续下一条。")}</p>
@@ -5125,7 +5158,12 @@ pub fn App() -> impl IntoView {
                             min="1"
                             placeholder=move || t("永久")
                             prop:value=move || retention_days.get()
-                            on:input=move |event| set_retention_days.set(event_target_value(&event))
+                            on:input=move |event| {
+                                let input = event_target::<web_sys::HtmlInputElement>(&event);
+                                invalid_days.set(!input.check_validity());
+                                set_retention_days.set(input.value());
+                                save_capture_draft.run(());
+                            }
                         />
                     </label>
                     <label>
@@ -5135,7 +5173,12 @@ pub fn App() -> impl IntoView {
                             min="1"
                             placeholder=move || t("不限")
                             prop:value=move || retention_items.get()
-                            on:input=move |event| set_retention_items.set(event_target_value(&event))
+                            on:input=move |event| {
+                                let input = event_target::<web_sys::HtmlInputElement>(&event);
+                                invalid_items.set(!input.check_validity());
+                                set_retention_items.set(input.value());
+                                save_capture_draft.run(());
+                            }
                         />
                     </label>
                     <label class="excluded-apps">
@@ -5143,7 +5186,7 @@ pub fn App() -> impl IntoView {
                         <textarea
                             placeholder="com.example.password-manager"
                             prop:value=move || excluded_apps.get()
-                            on:input=move |event| set_excluded_apps.set(event_target_value(&event))
+                            on:input=move |event| { set_excluded_apps.set(event_target_value(&event)); save_capture_draft.run(()); }
                         ></textarea>
                     </label>
                     <label class="toggle-setting">
@@ -5151,11 +5194,12 @@ pub fn App() -> impl IntoView {
                         <input
                             type="checkbox"
                             prop:checked=move || desktop_preferences.get().screen_share_protection
-                            on:change=move |event| set_desktop_preferences.update(|value| {
-                                value.screen_share_protection = event_target_checked(&event);
-                            })
+                            disabled=move || desktop_options_saving.with(|busy| busy.contains(&DesktopOption::ScreenShareProtection))
+                            on:change=move |event| change_desktop_option.run((DesktopOption::ScreenShareProtection, event_target_checked(&event)))
                         />
                     </label>
+                    {move || desktop_save_error.get().map(|message| view! { <p class="settings-save-error" role="alert">{message}</p> })}
+                    {move || capture_save_error.get().map(|message| view! { <div class="settings-save-error" role="alert"><p>{message}</p><button type="button" disabled=move || settings_saving.get() on:click=move |_| save_capture_draft.run(())>{move || t("重试")}</button></div> })}
                     <p>{move || t("固定到 Pinboard 的内容不会被保留策略清理。机密和瞬态剪贴板类型始终默认跳过。")}</p>
                     </div>
                     <div class="settings-page" data-settings-page="backup" hidden=move || settings_tab.get() != "backup"><h2>{move || t("备份")}</h2><p class="settings-description">{move || t("导出与恢复本地数据")}</p>
@@ -5166,7 +5210,7 @@ pub fn App() -> impl IntoView {
                         </div>
                         <div class="backup-actions">
                             <button type="button" on:click=export_backup>{move || t("导出备份")}</button>
-                            <button class="restore-backup" type="button" on:click=restore_backup>
+                            <button class="restore-backup" type="button" disabled=move || settings_saving.get() || desktop_options_saving.with(|busy| !busy.is_empty()) on:click=restore_backup>
                                 {move || t("恢复备份")}
                             </button>
                         </div>
@@ -5279,7 +5323,6 @@ pub fn App() -> impl IntoView {
                     </section>
                     </div>
                     </div></div>
-                    <footer><span>{move || t("通用与隐私选项修改后保存")}</span><button class="save-settings" type="button" disabled=move || language_saving.get() || settings_saving.get() || appearance_saving.get() || opening_saving.get() on:click=save_settings>{move || t("保存设置")}</button></footer>
                 </aside>
             })}
 
@@ -5813,8 +5856,4 @@ fn quick_paste_index(key: &str) -> Option<usize> {
 
 fn optional_number(value: Option<u32>) -> String {
     value.map_or_else(String::new, |number| number.to_string())
-}
-
-fn parse_optional_positive(value: &str) -> Option<u32> {
-    value.trim().parse::<u32>().ok().filter(|value| *value > 0)
 }

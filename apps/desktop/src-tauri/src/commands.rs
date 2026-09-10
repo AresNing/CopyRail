@@ -2301,6 +2301,69 @@ fn read_desktop_preferences(
 }
 
 #[tauri::command]
+pub fn set_desktop_option(
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+    request: paste_domain::DesktopOptionUpdate,
+) -> ApiResult<DesktopPreferences> {
+    use paste_domain::DesktopOption;
+    let login = request.option == DesktopOption::LaunchAtLogin;
+    if login && state.native_test.is_some() {
+        return Err(ApiError::permission("隔离验证不能修改登录启动。"));
+    }
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| ApiError::invalid("主窗口不可用"))?;
+    let mut previous = state
+        .store
+        .load_desktop_preferences()
+        .map_err(ApiError::storage)?;
+    if login {
+        previous.launch_at_login = app.autolaunch().is_enabled().map_err(ApiError::storage)?;
+    }
+    let mut next = previous;
+    request.option.apply(&mut next, request.enabled);
+    let login_changed = login && next.launch_at_login != previous.launch_at_login;
+    if login_changed {
+        apply_autostart(&app, next.launch_at_login)?;
+    }
+    // A login or sharing toggle must not reposition the rail window.
+    let apply = |preferences: DesktopPreferences| -> tauri::Result<()> {
+        match request.option {
+            DesktopOption::LaunchAtLogin => Ok(()),
+            DesktopOption::CompactMode => apply_desktop_preferences(&window, preferences),
+            DesktopOption::ScreenShareProtection => {
+                window.set_content_protected(preferences.screen_share_protection)?;
+                if let Some(aux) = app.get_webview_window("workspace") {
+                    aux.set_content_protected(preferences.screen_share_protection)?;
+                }
+                Ok(())
+            }
+        }
+    };
+    if let Err(error) = apply(next) {
+        let _ = apply(previous);
+        if login_changed {
+            let _ = apply_autostart(&app, previous.launch_at_login);
+        }
+        return Err(ApiError::storage(error));
+    }
+    match state.store.save_desktop_option(request) {
+        Ok(saved) => {
+            let _ = tauri::Emitter::emit(&app, "pasters-preferences-changed", ());
+            Ok(saved)
+        }
+        Err(error) => {
+            if login_changed {
+                let _ = apply_autostart(&app, previous.launch_at_login);
+            }
+            let _ = apply(previous);
+            Err(ApiError::storage(error))
+        }
+    }
+}
+
+#[tauri::command]
 pub fn update_desktop_preferences(
     app: AppHandle,
     _window: WebviewWindow,

@@ -18,7 +18,7 @@ await withCompiledUiTest(async({page,evaluate,waitFor,fixture,screenshot,artifac
   await page('Page.navigate',{url:fixture+'/?fixture=visual&window_role=workspace'});await open();
   const set=async(value)=>evaluate(`(()=>{const e=document.querySelector('.appearance-slider input');e.value=${value};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   for(const value of [0,50,100]) {
-   await set(value);await waitFor(`Number(localStorage.getItem('fixture-transparency'))===${value} && !document.querySelector('.save-settings').disabled`);
+   await set(value);await waitFor(`Number(localStorage.getItem('fixture-transparency'))===${value}`);
    assert.equal(await evaluate(`getComputedStyle(document.querySelector('.paste-shell')).getPropertyValue('--background-opacity').trim()`),String(1-value/100));
    assert.equal(await evaluate(`getComputedStyle(document.querySelector('.settings-popover')).opacity`),'1');
    const actualAlpha=await evaluate(`(()=>{const color=getComputedStyle(document.querySelector('.settings-popover')).backgroundColor;return color.startsWith('rgba')?Number(color.split(',').at(-1).replace(')','')):1})()`);
@@ -29,8 +29,8 @@ await withCompiledUiTest(async({page,evaluate,waitFor,fixture,screenshot,artifac
   await evaluate(`document.querySelector('.appearance-slider input').focus()`);
   for(const type of ['keyDown','keyUp'])await page('Input.dispatchKeyEvent',{type,key:'ArrowLeft',code:'ArrowLeft',windowsVirtualKeyCode:37});
   await waitFor(`localStorage.getItem('fixture-transparency')==='99'`);
-  await evaluate(`window.appearanceFixture={delayMs:150,fail:false};document.querySelector('.toggle-setting input').click()`);
-  await set(25);await set(75);await set(35);await waitFor(`localStorage.getItem('fixture-transparency')==='35' && !document.querySelector('.save-settings').disabled`);
+  await evaluate(`window.appearanceFixture={delayMs:150,fail:false};if(!document.querySelector('.toggle-setting input').checked)document.querySelector('.toggle-setting input').click()`);
+  await set(25);await set(75);await set(35);await waitFor(`localStorage.getItem('fixture-transparency')==='35'`);
   assert.equal(await evaluate(`document.querySelector('.toggle-setting input').checked`),true,'appearance save preserves unrelated local draft');
   await evaluate(`window.appearanceFixture.fail=true`);await set(80);
   await waitFor(`document.querySelector('.appearance-error') && document.querySelector('.appearance-slider input').value==='35'`);

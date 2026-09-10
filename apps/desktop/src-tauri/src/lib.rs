@@ -256,6 +256,7 @@ fn run_with_profile(native_test: Option<Arc<native_test::NativeTestProfile>>) {
                 commands::set_language,
                 commands::get_language_settings,
                 commands::update_desktop_preferences,
+                commands::set_desktop_option,
                 commands::capture_status,
                 commands::pause_capture,
                 commands::resume_capture,

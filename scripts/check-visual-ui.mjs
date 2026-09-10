@@ -119,11 +119,11 @@ await withCompiledUiTest(async ({ page, evaluate, waitFor, fixture, screenshot, 
     await key('Escape', 'Escape', 27);
     await waitFor(`!document.querySelector('.content-editor')`);
     await evaluate(`document.querySelector('.settings-button').click()`);
-    await waitFor(`document.querySelector('.settings-popover .save-settings')`);
+    await waitFor(`document.querySelector('.settings-popover .settings-content')`);
     await page('Emulation.setDeviceMetricsOverride', { width: 1440, height: 608, deviceScaleFactor: 1, mobile: false });
-    await checkContrast(theme, ['.settings-popover header', '.permission-actions button', '.backup-actions button', '.save-settings']);
-    await evaluate(`document.querySelector('.save-settings').scrollIntoView({ block: 'nearest' })`);
-    assert.equal(await evaluate(`document.querySelector('.save-settings').getBoundingClientRect().bottom <= innerHeight && document.querySelector('.settings-popover').scrollWidth <= document.querySelector('.settings-popover').clientWidth + 1`), true);
+    await checkContrast(theme, ['.settings-popover header', '.permission-actions button', '.backup-actions button']);
+    assert.equal(await evaluate(`document.querySelector('.save-settings')===null && document.querySelector('.settings-popover > footer')===null`), true);
+    assert.equal(await evaluate(`document.querySelector('.settings-popover').scrollWidth <= document.querySelector('.settings-popover').clientWidth + 1`), true);
     screenshots.push(await screenshot(`visual-settings-${theme}.png`));
 
     await media(theme, true, true);

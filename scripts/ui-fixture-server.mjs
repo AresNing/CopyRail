@@ -178,7 +178,23 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
         return bundleIds.map(bundleIdentifier => ({ bundleIdentifier, dataUrl: bundleIdentifier === 'io.pasters.broken-icon' ? 'data:image/png;base64,aGVsbG8=' : iconAssets[bundleIdentifier] ?? null }));
       }
       case 'get_capture_preferences':
-        return { retention: { max_age_days: null, max_unpinned_items: null }, excluded_bundle_ids: [] };
+        return JSON.parse(localStorage.getItem('fixture-capture') ?? 'null') ?? { retention: { max_age_days: null, max_unpinned_items: null }, excluded_bundle_ids: [] };
+      case 'set_desktop_option':
+      case 'update_capture_preferences': {
+        const c=window.autoSaveFixture ??= {calls:[],delayMs:0,failDesktop:false,failCapture:false};
+        c.calls.push({command,request:structuredClone(args.request)});
+        if(c.delayMs)await new Promise(r=>setTimeout(r,c.delayMs));
+        const desktop=command==='set_desktop_option';
+        if(desktop?c.failDesktop:c.failCapture)throw {message:'Synthetic autosave failure'};
+        if(desktop){
+          const value=JSON.parse(localStorage.getItem('fixture-options') ?? '{}');
+          value[args.request.option]=args.request.enabled;
+          localStorage.setItem('fixture-options',JSON.stringify(value));
+          emit('pasters-preferences-changed',null);
+          return window.__TAURI__.core.invoke('get_desktop_preferences',{});
+        }
+        localStorage.setItem('fixture-capture',JSON.stringify(args.request));return args.request;
+      }
       case 'set_opening_position':
         window.openingFixture.calls.push({command,args});
         if(window.openingFixture.delayMs)await new Promise(r=>setTimeout(r,window.openingFixture.delayMs));
@@ -205,7 +221,7 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
         localStorage.setItem('fixture-transparency',String(args.request));
         emit('pasters-preferences-changed',null);return args.request;
       case 'get_desktop_preferences':
-        return { opening_position: localStorage.getItem('fixture-opening') ?? 'latest', background_transparency: Number(localStorage.getItem('fixture-transparency') ?? 50), language: localStorage.getItem('fixture-language') ?? 'system', launch_at_login: false, screen_share_protection: false, compact_mode: (visualMode || pinboardMode) && new URLSearchParams(location.search).get('compact') === '1' };
+        return { opening_position: localStorage.getItem('fixture-opening') ?? 'latest', background_transparency: Number(localStorage.getItem('fixture-transparency') ?? 50), language: localStorage.getItem('fixture-language') ?? 'system', launch_at_login: false, screen_share_protection: false, compact_mode: (visualMode || pinboardMode) && new URLSearchParams(location.search).get('compact') === '1', ...JSON.parse(localStorage.getItem('fixture-options') ?? '{}') };
       case 'get_language_settings': return languageSettings(localStorage.getItem('fixture-language') ?? 'system');
       case 'set_language': {
         const control = window.languageFixture;
