@@ -1680,6 +1680,56 @@ impl SqliteStore {
         Ok(value)
     }
 
+    pub fn save_opening_position(
+        &self,
+        value: paste_domain::OpeningPosition,
+    ) -> Result<paste_domain::OpeningPosition, StorageError> {
+        let connection = self.lock()?;
+        let json = connection
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'desktop_preferences'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        let mut preferences = match json {
+            Some(json) => serde_json::from_str::<DesktopPreferences>(&json)
+                .map_err(|error| corrupt("desktop preferences", error))?,
+            None => DesktopPreferences::default(),
+        };
+        preferences.opening_position = value;
+        let json = serde_json::to_string(&preferences)
+            .map_err(|error| corrupt("desktop preferences", error))?;
+        connection.execute("INSERT INTO settings (key, value, updated_at_ms) VALUES ('desktop_preferences', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at_ms = excluded.updated_at_ms", params![json, Utc::now().timestamp_millis()])?;
+        Ok(value)
+    }
+
+    pub fn load_rail_position(&self) -> Result<Option<paste_domain::RailPosition>, StorageError> {
+        let connection = self.lock()?;
+        let json = connection
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'rail_position'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        json.map(|value| {
+            serde_json::from_str(&value).map_err(|error| corrupt("rail position", error))
+        })
+        .transpose()
+    }
+
+    pub fn save_rail_position(
+        &self,
+        position: &paste_domain::RailPosition,
+    ) -> Result<(), StorageError> {
+        let json =
+            serde_json::to_string(position).map_err(|error| corrupt("rail position", error))?;
+        let connection = self.lock()?;
+        connection.execute("INSERT INTO settings (key, value, updated_at_ms) VALUES ('rail_position', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at_ms = excluded.updated_at_ms", params![json, Utc::now().timestamp_millis()])?;
+        Ok(())
+    }
+
     pub fn save_desktop_preferences(
         &self,
         preferences: DesktopPreferences,

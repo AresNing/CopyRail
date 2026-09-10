@@ -264,6 +264,9 @@ pub fn allows_command(command: &str) -> bool {
             | "get_desktop_preferences"
             | "set_language"
             | "set_background_transparency"
+            | "set_opening_position"
+            | "get_rail_opening"
+            | "save_rail_position" // Scoped synthetic DB only; no system clipboard or preferences.
             | "get_language_settings" // Read system locale and the isolated preference only.
             | "capture_status"
             | "start_clip_drag"

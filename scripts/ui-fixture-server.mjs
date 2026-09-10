@@ -120,6 +120,7 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
     emit('pasters-drag-ended', { sessionId: state.drag.sessionId, cancelled: false });
     state.drag = null;
   });
+  window.openingFixture = { calls: [], fail: false, delayMs: 0 };
   window.languageFixture = { calls: [], fail: false, delayMs: 0, systemLocale: new URLSearchParams(location.search).get('system_locale') ?? 'zh-CN' };
   const languageSettings = preference => ({ preference, effective: preference === 'system' ? (/^zh(?:[-_]|$)/i.test(window.languageFixture.systemLocale) ? 'zh-CN' : 'en') : preference });
   window.__TAURI__ = { event: { listen: async (name, handler) => {
@@ -178,13 +179,33 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
       }
       case 'get_capture_preferences':
         return { retention: { max_age_days: null, max_unpinned_items: null }, excluded_bundle_ids: [] };
+      case 'set_opening_position':
+        window.openingFixture.calls.push({command,args});
+        if(window.openingFixture.delayMs)await new Promise(r=>setTimeout(r,window.openingFixture.delayMs));
+        if(window.openingFixture.fail)throw {message:'Synthetic selection preference failure'};
+        localStorage.setItem('fixture-opening',args.request);
+        emit('pasters-preferences-changed',null);return args.request;
+      case 'get_rail_opening': {
+        window.openingFixture.calls.push({command,args});
+        const value=[localStorage.getItem('fixture-opening') ?? 'latest',JSON.parse(localStorage.getItem('fixture-rail-position') ?? 'null')];
+        if(window.openingFixture.delayMs)await new Promise(r=>setTimeout(r,window.openingFixture.delayMs));
+        return value;
+      }
+      case 'save_rail_position':
+        window.openingFixture.calls.push({command,args:structuredClone(args)});
+        localStorage.setItem('fixture-rail-position',JSON.stringify(args.request));return null;
+      case 'history_position': {
+        const position=clips.findIndex(c=>c.id===args.request.clip_id);
+        if(position<0)throw {message:'Synthetic missing item'};
+        return {position};
+      }
       case 'set_background_transparency':
         if(window.appearanceFixture?.delayMs)await new Promise(r=>setTimeout(r,window.appearanceFixture.delayMs));
         if(window.appearanceFixture?.fail)throw {message:'Synthetic appearance failure'};
         localStorage.setItem('fixture-transparency',String(args.request));
         emit('pasters-preferences-changed',null);return args.request;
       case 'get_desktop_preferences':
-        return { background_transparency: Number(localStorage.getItem('fixture-transparency') ?? 50), language: localStorage.getItem('fixture-language') ?? 'system', launch_at_login: false, screen_share_protection: false, compact_mode: (visualMode || pinboardMode) && new URLSearchParams(location.search).get('compact') === '1' };
+        return { opening_position: localStorage.getItem('fixture-opening') ?? 'latest', background_transparency: Number(localStorage.getItem('fixture-transparency') ?? 50), language: localStorage.getItem('fixture-language') ?? 'system', launch_at_login: false, screen_share_protection: false, compact_mode: (visualMode || pinboardMode) && new URLSearchParams(location.search).get('compact') === '1' };
       case 'get_language_settings': return languageSettings(localStorage.getItem('fixture-language') ?? 'system');
       case 'set_language': {
         const control = window.languageFixture;
@@ -212,7 +233,7 @@ function fixtureBootstrap(iconAssets, pdfAssets) {
         control.registered = !control.failRegistration;
         return { isolated: false, registered: control.registered, error: control.registered ? null : 'Synthetic shortcut registration failure' };
       }
-      case 'list_history': return pinboardMode || visualMode ? structuredClone(clips) : [];
+      case 'list_history': return pinboardMode || visualMode ? structuredClone(clips.slice(args.request.offset ?? 0,(args.request.offset ?? 0)+(args.request.limit ?? 200))) : [];
       case 'search_history': {
         const ids = members.get(args.request.pinboard_id) ?? clips.map(clip => clip.id);
         return pinboardMode || visualMode ? ids.map(id => clips.find(clip => clip.id === id)).filter(clip => clip && (clip.title + clip.searchable_text).includes(args.request.text)) : [];

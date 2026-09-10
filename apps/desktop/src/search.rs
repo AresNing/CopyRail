@@ -1,31 +1,8 @@
 //! Shared, host-testable rules for the actual WASM search interaction.
+#[cfg(test)]
 use paste_domain::{ContentKind, DeviceId, PinboardId};
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct SearchContext {
-    pub text: String,
-    pub board: Option<PinboardId>,
-    pub kind: Option<ContentKind>,
-    pub source: Option<String>,
-    pub device: Option<DeviceId>,
-    pub days: Option<i64>,
-    pub history_offset: u32,
-}
-
-impl SearchContext {
-    pub fn is_search(&self) -> bool {
-        !self.text.trim().is_empty()
-            || self.kind.is_some()
-            || self.source.is_some()
-            || self.device.is_some()
-            || self.days.is_some()
-    }
-
-    /// A board is a browsing context, never an implicit global-search filter.
-    pub fn scoped_board(&self) -> Option<PinboardId> {
-        if self.is_search() { None } else { self.board }
-    }
-}
+pub use paste_domain::SearchContext;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SearchKeyAction {

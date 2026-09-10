@@ -15,6 +15,7 @@ pub use clip::{
 pub use color::parse_color_code;
 pub use pinboard::{Pinboard, PinboardId};
 pub use query::{
-    CapturePreferences, DesktopPreferences, DeviceFacet, RetentionPolicy, SearchFacets,
-    SearchFilters, SearchHit, SearchPage, SearchQuery, SourceFacet,
+    CapturePreferences, DesktopPreferences, DeviceFacet, OpeningPosition, RailPosition,
+    RetentionPolicy, SearchContext, SearchFacets, SearchFilters, SearchHit, SearchPage,
+    SearchQuery, SourceFacet,
 };

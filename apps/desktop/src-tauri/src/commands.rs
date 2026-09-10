@@ -2026,7 +2026,9 @@ async fn restore_items(
                     .map_err(ApiError::storage)?
                     && paste_platform::MacPasteTarget::owns_foreground()
                 {
-                    show_main_window(&window).map_err(ApiError::storage)?;
+                    // Failed paste recovery is not a fresh invocation. Preserve
+                    // the chosen item even when opening mode is Latest.
+                    crate::window::restore_main_window(&window).map_err(ApiError::storage)?;
                 }
                 Ok(())
             })
@@ -2223,6 +2225,51 @@ pub fn set_background_transparency(
         .map_err(ApiError::storage)?;
     let _ = tauri::Emitter::emit(&app, "pasters-preferences-changed", ());
     Ok(saved)
+}
+
+#[tauri::command]
+pub fn set_opening_position(
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+    request: paste_domain::OpeningPosition,
+) -> ApiResult<paste_domain::OpeningPosition> {
+    let saved = state
+        .store
+        .save_opening_position(request)
+        .map_err(ApiError::storage)?;
+    let _ = tauri::Emitter::emit(&app, "pasters-preferences-changed", ());
+    Ok(saved)
+}
+
+#[tauri::command]
+pub fn get_rail_opening(
+    state: State<'_, DesktopState>,
+) -> ApiResult<(
+    paste_domain::OpeningPosition,
+    Option<paste_domain::RailPosition>,
+)> {
+    Ok((
+        state
+            .store
+            .load_desktop_preferences()
+            .map_err(ApiError::storage)?
+            .opening_position,
+        state
+            .store
+            .load_rail_position()
+            .map_err(ApiError::storage)?,
+    ))
+}
+
+#[tauri::command]
+pub fn save_rail_position(
+    state: State<'_, DesktopState>,
+    request: paste_domain::RailPosition,
+) -> ApiResult<()> {
+    state
+        .store
+        .save_rail_position(&request)
+        .map_err(ApiError::storage)
 }
 
 #[tauri::command]
@@ -2565,6 +2612,7 @@ mod tests {
             compact_mode: true,
             screen_share_protection: true,
             background_transparency: 50,
+            opening_position: paste_domain::OpeningPosition::Latest,
         };
         store
             .save_desktop_preferences(saved)

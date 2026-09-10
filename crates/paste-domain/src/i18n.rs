@@ -508,6 +508,16 @@ pub fn translate(language: Language, source: &str) -> &str {
         "⌘S 保存 · Esc 取消；支持系统字体面板、撤销与右键文本操作。" => {
             "⌘S to save · Esc to cancel. Supports the system font panel, undo and text context menus."
         }
+        "打开时定位" => "Selection on open",
+        "自动保存，下次打开主界面时生效。" => {
+            "Saves automatically. Applies the next time you open the rail."
+        }
+        "最新内容" => "Latest item",
+        "上次停留的位置" => "Last position",
+        "定位设置保存失败，请重试。" => {
+            "Could not save selection preference. Try again."
+        }
+        "无法记住当前位置，请重试。" => "Could not remember your position. Try again.",
         "字体…" => "Fonts…",
         "⌘S 保存 · Esc 取消" => "⌘S Save · Esc Cancel",
         "部分格式已简化。保存使用当前格式，取消保留原内容。" => {

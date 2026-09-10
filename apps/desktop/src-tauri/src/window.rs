@@ -911,6 +911,13 @@ pub(crate) fn trace_invocation(
 }
 
 pub fn show_main_window(window: &WebviewWindow) -> tauri::Result<()> {
+    restore_main_window(window)?;
+    // Explicit invocation only. Returning from settings/preview uses the lower
+    // level presenter and must not reset the user's selection.
+    tauri::Emitter::emit(window, "pasters-rail-opened", ())
+}
+
+pub(crate) fn restore_main_window(window: &WebviewWindow) -> tauri::Result<()> {
     // Every user invocation (shortcut, tray, Window menu, reopen, IPC) goes
     // through here. Capture before activating our own window; unknown/self
     // replaces the old target with None rather than reusing stale intent.

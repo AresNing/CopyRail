@@ -19,6 +19,7 @@ CopyRail keeps the things you copy in a searchable card rail. Find a snippet, pr
 - **Paste one item at a time.** Add cards to a paste queue for filling several fields in a chosen order. Plain-text output is available too.
 - **Choose your language.** By default, CopyRail follows your system language: Chinese uses Simplified Chinese; other languages use English. Choose System default, English or Simplified Chinese in Settings → General → Language. Manual choices are saved immediately and preserved on launch.
 - **Adjust the glass background.** Settings → General → Background transparency ranges from an opaque surface to clear macOS frosted glass. The default is 50%; changes save automatically across the rail, settings and preview, while text and controls stay solid. System reduced-transparency preferences take priority.
+- **Choose where the rail opens.** Settings → General → Selection on open offers Latest item (default) or Last position. Last position remembers the selected card and browsing context across restarts; new captures do not change the remembered card. Missing items return to the latest history. The setting saves automatically and applies on the next invocation.
 - **Choose what stays.** Pause capture, exclude apps, set retention limits, and export or restore a local backup.
 - **Work from the keyboard.** Open the rail with `⇧⌘V`, navigate with the arrow keys, preview with `Space`, and copy with `⌘C`.
 
@@ -49,7 +50,7 @@ Hiding the rail leaves capture running. Pause capture in Settings or the menu ba
 
 ## Status and platform
 
-CopyRail is an **early source MVP**, developed and tested on Apple Silicon macOS. The latest local iteration is **0.1.0-local-beta.21**. There is no Developer ID-signed, notarized binary release yet.
+CopyRail is an **early source MVP**, developed and tested on Apple Silicon macOS. The latest local iteration is **0.1.0-local-beta.22**. There is no Developer ID-signed, notarized binary release yet.
 
 The implemented features above are not a claim of complete daily-use validation. Full cross-app paste and drag/drop coverage, complex rich-text fidelity, full-screen Spaces, multiple displays and VoiceOver still have open acceptance items. Shared pinboards, multi-device sync and mobile clients are outside this MVP. See the [verification record](docs/verification.md) for the tested scope.
 

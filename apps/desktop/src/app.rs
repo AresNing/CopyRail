@@ -611,6 +611,16 @@ pub fn App() -> impl IntoView {
     let (active_pinboard, set_active_pinboard) = signal(None::<PinboardId>);
     let (query, set_query) = signal(String::new());
     let (selected, set_selected) = signal(0_usize);
+    let opening_epoch = RwSignal::new(1_u64);
+    let opening_prepared = StoredValue::new(0_u64);
+    let opening_completed = RwSignal::new(0_u64);
+    if native_rail {
+        drag_drop::subscribe(
+            "pasters-rail-opened",
+            Callback::new(move |_| opening_epoch.update(|epoch| *epoch = epoch.wrapping_add(1))),
+            Callback::new(move |_| {}),
+        );
+    }
     let (selected_ids, set_selected_ids) = signal(HashSet::<ClipId>::new());
     let (selection_anchor, set_selection_anchor) = signal(0_usize);
     let (stack, set_stack) = signal(Vec::<ClipId>::new());
@@ -769,6 +779,32 @@ pub fn App() -> impl IntoView {
                 }
             }
             appearance_saving.set(false);
+        });
+    };
+    let opening_saving = RwSignal::new(false);
+    let opening_error = RwSignal::new(false);
+    let change_opening_position = move |event: ev::Event| {
+        if opening_saving.get_untracked() || settings_saving.get_untracked() {
+            return;
+        }
+        let next = match event_target_value(&event).as_str() {
+            "latest" => paste_domain::OpeningPosition::Latest,
+            "last" => paste_domain::OpeningPosition::Last,
+            _ => return,
+        };
+        opening_saving.set(true);
+        opening_error.set(false);
+        spawn_local(async move {
+            match invoke::<paste_domain::OpeningPosition>(
+                "set_opening_position",
+                &CommandArgs { request: next },
+            )
+            .await
+            {
+                Ok(saved) => set_desktop_preferences.update(|draft| draft.opening_position = saved),
+                Err(_) => opening_error.set(true),
+            }
+            opening_saving.set(false);
         });
     };
     let language_saving = RwSignal::new(false);
@@ -1077,6 +1113,86 @@ pub fn App() -> impl IntoView {
                 TimeoutFuture::new(100).await;
                 continue;
             }
+            let requested_opening = opening_epoch.get_untracked();
+            if native_rail && opening_prepared.get_value() != requested_opening {
+                let current_position = loaded_context.get_untracked().and_then(|context| {
+                    clips.with_untracked(|items| {
+                        items
+                            .get(selected.get_untracked())
+                            .map(|clip| paste_domain::RailPosition {
+                                context,
+                                clip_id: clip.id,
+                            })
+                    })
+                });
+                let opening = invoke::<(
+                    paste_domain::OpeningPosition,
+                    Option<paste_domain::RailPosition>,
+                )>("get_rail_opening", &EmptyArgs {})
+                .await;
+                if requested_opening != opening_epoch.get_untracked() {
+                    continue;
+                }
+                let (mode, saved) = match opening {
+                    Ok(value) => value,
+                    Err(message) => {
+                        set_error.set(Some(message));
+                        (desktop_preferences.get_untracked().opening_position, None)
+                    }
+                };
+                let position = if mode == paste_domain::OpeningPosition::Last {
+                    current_position.or(saved)
+                } else {
+                    None
+                };
+                let mut context = SearchContext::default();
+                let mut target = None;
+                if let Some(position) = position {
+                    // Resolve by stable ID, not a stale index: captures may have
+                    // inserted hundreds of newer records while the rail was hidden.
+                    if let Ok(found) = invoke::<HistoryPositionResult>(
+                        "history_position",
+                        &CommandArgs {
+                            request: ClipRequest {
+                                clip_id: position.clip_id.to_string(),
+                            },
+                        },
+                    )
+                    .await
+                    {
+                        context = position.context;
+                        if !context.is_search() && context.board.is_none() {
+                            context.history_offset = if found.position < 200 {
+                                0
+                            } else {
+                                found.position.saturating_sub(3)
+                            };
+                        }
+                        target = Some(position.clip_id);
+                    }
+                }
+                if requested_opening != opening_epoch.get_untracked() {
+                    continue;
+                }
+                set_query.set(context.text);
+                set_active_pinboard.set(context.board);
+                set_active_kind.set(context.kind);
+                set_active_source.set(context.source);
+                set_active_device.set(context.device);
+                set_date_days.set(context.days);
+                set_history_offset.set(context.history_offset);
+                set_selected.set(0);
+                set_selected_ids.set(HashSet::new());
+                set_selection_anchor.set(0);
+                set_jump_target.set(target);
+                set_filter_menu_open.set(false);
+                set_pin_menu_open.set(false);
+                // Force the next list response to be the opening snapshot even
+                // when resetting to the same context and first index.
+                loaded_context.set(None);
+                opening_prepared.set_value(requested_opening);
+                TimeoutFuture::new(0).await;
+            }
             let requested_revision = order_revision.get_untracked();
             let requested_context = search_context.get_untracked();
             let text = requested_context.text.clone();
@@ -1136,6 +1252,7 @@ pub fn App() -> impl IntoView {
                 || tab_drag.get_untracked().is_some()
                 || placement_busy.get_untracked()
                 || requested_revision != order_revision.get_untracked()
+                || (native_rail && requested_opening != opening_epoch.get_untracked())
                 || requested_context != search_context.get_untracked()
             {
                 TimeoutFuture::new(100).await;
@@ -1143,6 +1260,61 @@ pub fn App() -> impl IntoView {
             }
             match loaded {
                 Ok(items) => {
+                    if native_rail
+                        && opening_completed.get_untracked() != requested_opening
+                        && jump_target
+                            .get_untracked()
+                            .is_some_and(|id| !items.iter().any(|item| item.id == id))
+                    {
+                        // A deleted board, changed filter result, or expired item
+                        // cannot leave an invisible or stale selection behind.
+                        set_jump_target.set(None);
+                        set_query.set(String::new());
+                        set_active_pinboard.set(None);
+                        set_active_kind.set(None);
+                        set_active_source.set(None);
+                        set_active_device.set(None);
+                        set_date_days.set(None);
+                        set_history_offset.set(0);
+                        set_selected.set(0);
+                        set_selected_ids.set(HashSet::new());
+                        loaded_context.set(None);
+                        continue;
+                    }
+                    if native_rail
+                        && !requested_context.is_search()
+                        && requested_context.board.is_none()
+                        && loaded_context.get_untracked().as_ref() == Some(&requested_context)
+                        && let Some(id) = clips.with_untracked(|old| {
+                            old.get(selected.get_untracked()).map(|item| item.id)
+                        })
+                        && !items.iter().any(|item| item.id == id)
+                    {
+                        // A background refresh must not silently replace the
+                        // selected ID when new captures push it off this page.
+                        if let Ok(found) = invoke::<HistoryPositionResult>(
+                            "history_position",
+                            &CommandArgs {
+                                request: ClipRequest {
+                                    clip_id: id.to_string(),
+                                },
+                            },
+                        )
+                        .await
+                        {
+                            if requested_context != search_context.get_untracked()
+                                || requested_opening != opening_epoch.get_untracked()
+                            {
+                                continue;
+                            }
+                            let offset = found.position.saturating_sub(3);
+                            if offset != requested_context.history_offset {
+                                set_history_offset.set(offset);
+                                set_jump_target.set(Some(id));
+                                continue;
+                            }
+                        }
+                    }
                     let retain_index = |index: usize| {
                         if loaded_context.get_untracked().as_ref() == Some(&requested_context)
                             && let Some(id) =
@@ -1304,6 +1476,9 @@ pub fn App() -> impl IntoView {
                             Some((element, card.id(), selector))
                         });
                     set_clips.set(items);
+                    if native_rail && opening_completed.get_untracked() != requested_opening {
+                        opening_completed.set(requested_opening);
+                    }
                     if let Some((previous, card_id, selector)) = action_focus {
                         spawn_local(async move {
                             TimeoutFuture::new(0).await;
@@ -1349,7 +1524,9 @@ pub fn App() -> impl IntoView {
             // Keep background refresh inexpensive, but wake promptly for typing,
             // filter changes, board navigation, and history-position jumps.
             for _ in 0..10 {
-                if requested_context != search_context.get_untracked() {
+                if requested_context != search_context.get_untracked()
+                    || (native_rail && requested_opening != opening_epoch.get_untracked())
+                {
                     break;
                 }
                 TimeoutFuture::new(75).await;
@@ -1363,6 +1540,7 @@ pub fn App() -> impl IntoView {
         Memo::new(move |_| clips.with(|items| items.get(selected.get()).map(|clip| clip.id)));
     Effect::new(move |_| {
         let id = active_card_id.get();
+        let _ = opening_completed.get();
         set_timeout(
             move || {
                 if let Some(id) = id
@@ -1397,6 +1575,77 @@ pub fn App() -> impl IntoView {
             let _ = results.focus();
         }
     });
+    if native_rail {
+        Effect::new(move |_| {
+            let completed = opening_completed.get();
+            if completed == 0 {
+                return;
+            }
+            set_timeout(
+                move || {
+                    if opening_epoch.get_untracked() == completed
+                        && !content_editor_open.get_untracked()
+                    {
+                        focus_results.run(());
+                    }
+                },
+                std::time::Duration::ZERO,
+            );
+        });
+        let position_pending = RwSignal::new(None::<paste_domain::RailPosition>);
+        let position_saving = StoredValue::new(false);
+        let last_saved = StoredValue::new(None::<paste_domain::RailPosition>);
+        Effect::new(move |_| {
+            if opening_completed.get() != opening_epoch.get()
+                || results_pending.get()
+                || jump_target.get().is_some()
+            {
+                return;
+            }
+            let Some(clip_id) = active_card_id.get() else {
+                return;
+            };
+            let position = paste_domain::RailPosition {
+                clip_id,
+                context: search_context.get(),
+            };
+            let unchanged = last_saved.get_value().as_ref() == Some(&position);
+            position_pending.set(Some(position));
+            if unchanged && !position_saving.get_value() {
+                return;
+            }
+            if position_saving.get_value() {
+                return;
+            }
+            position_saving.set_value(true);
+            spawn_local(async move {
+                loop {
+                    TimeoutFuture::new(150).await;
+                    let Some(position) = position_pending.get_untracked() else {
+                        break;
+                    };
+                    match invoke::<()>(
+                        "save_rail_position",
+                        &CommandArgs {
+                            request: position.clone(),
+                        },
+                    )
+                    .await
+                    {
+                        Ok(()) => last_saved.set_value(Some(position.clone())),
+                        Err(_) => {
+                            set_notice.set(Some(t("无法记住当前位置，请重试。").into()));
+                            break;
+                        }
+                    }
+                    if position_pending.get_untracked().as_ref() == Some(&position) {
+                        break;
+                    }
+                }
+                position_saving.set_value(false);
+            });
+        });
+    }
     Effect::new(move |_| {
         let open = content_editor_open.get();
         let Some(dialog) = content_editor_dialog.get() else {
@@ -3075,7 +3324,10 @@ pub fn App() -> impl IntoView {
     });
 
     let save_settings = move |_| {
-        if language_saving.get_untracked() || settings_saving.get_untracked() {
+        if language_saving.get_untracked()
+            || settings_saving.get_untracked()
+            || opening_saving.get_untracked()
+        {
             return;
         }
         let capture_preferences = CapturePreferences {
@@ -4722,6 +4974,16 @@ pub fn App() -> impl IntoView {
                         </select>
                     </label>
                     <Show when=move || language_error.get()><p class="language-error" role="status">{move || t("无法保存语言，请重试。")}</p></Show>
+                    <label class="language-setting">
+                        <span><strong>{move || t("打开时定位")}</strong><small>{move || t("自动保存，下次打开主界面时生效。")}</small></span>
+                        <select class="opening-position-select" aria-label=move || t("打开时定位")
+                            prop:value=move || { opening_saving.get(); match desktop_preferences.get().opening_position { paste_domain::OpeningPosition::Latest => "latest", paste_domain::OpeningPosition::Last => "last" } }
+                            disabled=move || opening_saving.get() || settings_saving.get() on:change=change_opening_position>
+                            <option value="latest">{move || t("最新内容")}</option>
+                            <option value="last">{move || t("上次停留的位置")}</option>
+                        </select>
+                    </label>
+                    <Show when=move || opening_error.get()><p class="language-error" role="status">{move || t("定位设置保存失败，请重试。")}</p></Show>
                     <label class="appearance-setting">
                         <span><strong>{move || t("背景透明度")}</strong><small>{move || if appearance_saving.get() { t("正在保存外观…") } else { t("调整后自动保存，应用于所有窗口。") }}</small></span>
                         <div class="appearance-slider">
@@ -5017,7 +5279,7 @@ pub fn App() -> impl IntoView {
                     </section>
                     </div>
                     </div></div>
-                    <footer><span>{move || t("通用与隐私选项修改后保存")}</span><button class="save-settings" type="button" disabled=move || language_saving.get() || settings_saving.get() || appearance_saving.get() on:click=save_settings>{move || t("保存设置")}</button></footer>
+                    <footer><span>{move || t("通用与隐私选项修改后保存")}</span><button class="save-settings" type="button" disabled=move || language_saving.get() || settings_saving.get() || appearance_saving.get() || opening_saving.get() on:click=save_settings>{move || t("保存设置")}</button></footer>
                 </aside>
             })}
 

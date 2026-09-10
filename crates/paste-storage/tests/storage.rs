@@ -1501,6 +1501,7 @@ fn persists_desktop_preferences() {
         screen_share_protection: true,
         compact_mode: true,
         background_transparency: 50,
+        opening_position: paste_domain::OpeningPosition::Latest,
     };
     assert_eq!(
         store
@@ -1889,5 +1890,71 @@ fn appearance_upgrade_preserves_other_preferences_and_rejects_invalid_or_failed_
     );
     assert!(
         serde_json::from_str::<DesktopPreferences>(r#"{"background_transparency":101}"#).is_err()
+    );
+}
+
+#[test]
+fn opening_position_upgrades_and_bookmark_survives_restart_without_clobbering_preferences() {
+    use paste_domain::{OpeningPosition, RailPosition, SearchContext};
+    let directory = tempfile::tempdir().expect("temp store");
+    let path = directory.path().join("history.db");
+    let store = SqliteStore::open(&path).expect("open");
+    let legacy: DesktopPreferences = serde_json::from_str(
+        r#"{"compact_mode":true,"language":"en","background_transparency":80}"#,
+    )
+    .expect("legacy");
+    assert_eq!(legacy.opening_position, OpeningPosition::Latest);
+    store
+        .save_desktop_preferences(legacy)
+        .expect("legacy saved");
+    assert_eq!(store.load_rail_position().expect("empty"), None);
+    let position = RailPosition {
+        clip_id: paste_domain::ClipId::new(),
+        context: SearchContext {
+            text: "synthetic query".into(),
+            history_offset: 205,
+            ..Default::default()
+        },
+    };
+    store.save_rail_position(&position).expect("bookmark");
+    store
+        .save_opening_position(OpeningPosition::Last)
+        .expect("mode");
+    assert_eq!(
+        store.load_desktop_preferences().expect("saved"),
+        DesktopPreferences {
+            opening_position: OpeningPosition::Last,
+            ..legacy
+        }
+    );
+    drop(store);
+    let store = SqliteStore::open(&path).expect("reopen");
+    assert_eq!(
+        store.load_rail_position().expect("reloaded"),
+        Some(position)
+    );
+    assert_eq!(
+        store
+            .load_desktop_preferences()
+            .expect("mode restored")
+            .opening_position,
+        OpeningPosition::Last
+    );
+    let sql = rusqlite::Connection::open(&path).expect("fixture");
+    sql.execute_batch("CREATE TRIGGER reject_opening BEFORE UPDATE ON settings WHEN NEW.key = 'desktop_preferences' BEGIN SELECT RAISE(ABORT, 'synthetic write failure'); END;").expect("failure");
+    assert!(
+        store
+            .save_opening_position(OpeningPosition::Latest)
+            .is_err()
+    );
+    assert_eq!(
+        store
+            .load_desktop_preferences()
+            .expect("unchanged")
+            .opening_position,
+        OpeningPosition::Last
+    );
+    assert!(
+        serde_json::from_str::<DesktopPreferences>(r#"{"opening_position":"unknown"}"#).is_err()
     );
 }

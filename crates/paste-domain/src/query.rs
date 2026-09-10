@@ -112,6 +112,7 @@ impl CapturePreferences {
 #[serde(default)]
 pub struct DesktopPreferences {
     pub language: crate::LanguagePreference,
+    pub opening_position: OpeningPosition,
     pub launch_at_login: bool,
     pub screen_share_protection: bool,
     pub compact_mode: bool,
@@ -123,6 +124,7 @@ impl Default for DesktopPreferences {
     fn default() -> Self {
         Self {
             language: Default::default(),
+            opening_position: OpeningPosition::default(),
             launch_at_login: false,
             screen_share_protection: false,
             compact_mode: false,
@@ -141,4 +143,45 @@ fn deserialize_transparency<'de, D: serde::Deserializer<'de>>(
         ));
     }
     Ok(value)
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct SearchContext {
+    pub text: String,
+    pub board: Option<PinboardId>,
+    pub kind: Option<ContentKind>,
+    pub source: Option<String>,
+    pub device: Option<DeviceId>,
+    pub days: Option<i64>,
+    pub history_offset: u32,
+}
+
+impl SearchContext {
+    pub fn is_search(&self) -> bool {
+        !self.text.trim().is_empty()
+            || self.kind.is_some()
+            || self.source.is_some()
+            || self.device.is_some()
+            || self.days.is_some()
+    }
+
+    /// A board is a browsing context, never an implicit global-search filter.
+    pub fn scoped_board(&self) -> Option<PinboardId> {
+        if self.is_search() { None } else { self.board }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OpeningPosition {
+    #[default]
+    Latest,
+    Last,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RailPosition {
+    pub context: SearchContext,
+    pub clip_id: crate::ClipId,
 }
