@@ -4,6 +4,8 @@
 
 **A local-first clipboard workspace for macOS.**
 
+[Visit the CopyRail website](https://aresning.github.io/CopyRail/)
+
 **[Download CopyRail 1.0.0 for Apple Silicon](https://github.com/AresNing/CopyRail/releases/download/v1.0.0/CopyRail_1.0.0_aarch64.dmg)** · [All release files](https://github.com/AresNing/CopyRail/releases/tag/v1.0.0) · [Installation guide](docs/installation.md)
 
 macOS 13+. The download is locally signed, without Apple Developer ID signing or notarization; see the installation guide for first-launch instructions.
@@ -131,6 +133,10 @@ Local delivery maintenance keeps three versions in total, including the current 
 Copyright 2026 CopyRail contributors. Project-owned code, documentation and original graphics are licensed under **[Apache-2.0](LICENSE)**, unless otherwise stated. See [NOTICE](NOTICE) for attribution and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party terms.
 
 Early research explored existing clipboard tools, including Paste. CopyRail now uses its own card-and-rail identity and design baseline. It is an independent project and is not affiliated with or endorsed by Paste Team ApS. This repository's license does not grant rights to third-party names, trademarks or assets.
+
+## Website
+
+The English landing page lives in `site/`. Run `node scripts/build-site.mjs` to prepare `target/pages/CopyRail/` and check local asset links and section anchors. Preview it with `python3 -m http.server 4178 --directory target/pages` at `http://localhost:4178/CopyRail/`. The Pages workflow publishes only the prepared website and selected synthetic screenshots to <https://aresning.github.io/CopyRail/> when its source changes on `main`; it can also be run manually. No app build or dependencies are needed. Download URLs are explicit release links in `site/index.html` and should be updated with the visible version and requirements for future releases.
 
 ## Build the downloadable release
 

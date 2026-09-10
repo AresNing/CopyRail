@@ -1,5 +1,7 @@
 # CopyRail
 
+[访问 CopyRail 官网](https://aresning.github.io/CopyRail/)
+
 [English](README.md) · **简体中文**
 
 **在本机保存、查找和整理复制内容的 macOS 剪贴板工作区。**

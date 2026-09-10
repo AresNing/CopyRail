@@ -2,6 +2,14 @@
 
 Current release: **1.0.0 (2026-09-10)**. Earlier dated entries are historical snapshots. This record separates automated checks from native acceptance and distribution readiness.
 
+## GitHub Pages landing page (2026-09-10)
+
+The English landing page is authored in `site/`, targeting `https://aresning.github.io/CopyRail/`. It uses the original CopyRail icon and two existing synthetic README screenshots, with direct links to the public 1.0.0 Apple Silicon DMG, release files, installation instructions and source. Platform, signing, local-storage and sync statements match the current release documentation. The site uses system fonts, static HTML/CSS and native disclosure elements; it has no application JavaScript, analytics, external font requests or form submissions. Relative assets support the `/CopyRail/` project path. Responsive CSS, keyboard focus styles and reduced-motion handling are included.
+
+`scripts/build-site.mjs` prepares an explicit public-file allowlist under `target/pages/CopyRail/` and checks local assets and section anchors. The separate Pages workflow uses pinned actions and publishes only that directory. Application code, binary releases and installed preferences are unchanged.
+
+Local validation passed: JavaScript syntax, website preparation, relative assets/anchors, English document language, a single H1, image alternative text/dimensions and `git diff --check`. Eight distinct public links (including the DMG download) and six local page/asset routes returned HTTP 200. The publication source was checked for credential patterns and private machine paths, with no findings. Evidence is retained in ignored `target/pages-validation.json`. Browser visual/interaction tests were not performed; static checks do not establish browser or native application acceptance. Public deployment verification is recorded after the workflow completes.
+
 ## README restored to 50% opacity (2026-09-10)
 
 The final README presentation is 50% opacity, equivalent to 50% in Settings → Background transparency. Both READMEs, screenshot provenance and capture settings have been restored accordingly. All four screenshots were regenerated on the unchanged optimized 1.0.0 frontend; checks passed for English copy, persisted transparency 50, background-opacity 0.5 and actual panel alpha 0.5. The General settings image was visually inspected; the other three frames byte-match the previously inspected 50% images. Installed preferences and published 1.0.0 binaries/tag are unchanged.

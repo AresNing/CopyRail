@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fafafa">
+  <title>CopyRail — Your clipboard, within reach.</title>
+  <meta name="description" content="An open-source clipboard workspace for macOS. Find what you copied, organize useful snippets, and paste in sequence. Download CopyRail 1.0 for Apple Silicon.">
+  <link rel="canonical" href="https://aresning.github.io/CopyRail/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="CopyRail — Your clipboard, within reach.">
+  <meta property="og:description" content="Find what you copied. Keep what you need. An open-source clipboard workspace for macOS.">
+  <meta property="og:url" content="https://aresning.github.io/CopyRail/">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="header wrap">
+    <a class="brand" href="./" aria-label="CopyRail home"><img src="assets/icon.svg" width="32" height="32" alt="">CopyRail</a>
+    <nav aria-label="Main navigation">
+      <a class="nav-features" href="#features">Features</a>
+      <a href="https://github.com/AresNing/CopyRail">GitHub <span aria-hidden="true">↗</span></a>
+      <a class="nav-download" href="#download">Get CopyRail</a>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <a class="release" href="https://github.com/AresNing/CopyRail/releases/tag/v1.0.0"><span>1.0</span> Open source. Made for Mac. <span aria-hidden="true">↗</span></a>
+      <h1 id="hero-title">Your clipboard,<br><span>within reach.</span></h1>
+      <p class="hero-copy">Find what you copied. Keep what you need.<br>A little less searching. A little more doing.</p>
+      <div class="actions">
+        <a class="button button-dark" href="https://github.com/AresNing/CopyRail/releases/download/v1.0.0/CopyRail_1.0.0_aarch64.dmg"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5"/></svg>Download for Mac</a>
+        <a class="button button-outline" href="https://github.com/AresNing/CopyRail">Explore the source <span aria-hidden="true">↗</span></a>
+      </div>
+      <p class="compatibility">Free & open source · Apple Silicon · macOS 13+</p>
+      <p class="install-note">Not Apple-notarized. <a href="https://github.com/AresNing/CopyRail/blob/main/docs/installation.md">First-launch instructions</a></p>
+    </section>
+    <figure class="rail-showcase wrap">
+      <div class="rail-stage"><img src="assets/clipboard-dark.png" width="2880" height="496" alt="CopyRail’s card rail with a note, a link, an image, a color, a code snippet and HTML content." fetchpriority="high"></div>
+      <figcaption><span>One rail. Everything you want to come back to.</span><span class="shortcut"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>V</kbd><span>to bring it up</span></span></figcaption>
+    </figure>
+    <section class="features wrap" id="features" aria-labelledby="features-title">
+      <div class="section-heading"><p class="eyebrow">COPY. FIND. REUSE.</p><h2 id="features-title">Keep your flow.<br>Not just your last copy.</h2></div>
+      <div class="feature-grid">
+        <article><span class="feature-number">01 / FIND IT</span><h3>Copied it? Find it.</h3><p>Search your clipboard history. Narrow it down by content type, source app or date, and pick up where you left off.</p></article>
+        <article><span class="feature-number">02 / KEEP IT</span><h3>A home for the useful bits.</h3><p>Save snippets to pinboards. Rename, edit and reorder the things you reach for again and again.</p></article>
+        <article><span class="feature-number">03 / USE IT</span><h3>Paste in your own order.</h3><p>Queue up a few cards, then paste them one at a time. Handy for filling several fields without the back-and-forth.</p></article>
+      </div>
+    </section>
+    <section class="preview-section" aria-labelledby="preview-title">
+      <div class="wrap">
+        <div class="preview-heading"><div><p class="eyebrow">THE CONTEXT STAYS WITH YOU</p><h2 id="preview-title">Take a closer look.<br>Stay right here.</h2></div><p>Tap <kbd>Space</kbd> to open a preview above the rail. Read a longer note or inspect an image, with your history still in view.</p></div>
+        <figure class="preview-figure"><img src="assets/preview-dark.png" width="2880" height="1216" loading="lazy" alt="A compact text reader above the CopyRail rail, with the selected note open and the other clipboard cards still visible."><figcaption>CopyRail interface with synthetic demo content. Screenshots use a simulated backdrop.</figcaption></figure>
+      </div>
+    </section>
+    <section class="details-section wrap" aria-labelledby="details-title">
+      <div class="details-intro"><p class="eyebrow">SMALL DETAILS, DAILY DIFFERENCE</p><h2 id="details-title">Fits the way<br>you work.</h2><p>Built with Rust and Tauri.<br>Made to keep useful things close.</p></div>
+      <div class="detail-list">
+        <article><h3>Local history. Your controls.</h3><p>Your clipboard history stays on your Mac. Pause capture, exclude apps, set retention limits, and export a backup.</p></article>
+        <article><h3>More than plain text.</h3><p>Keep links, images, files, PDFs, colors and HTML alongside your notes. Choose plain-text output when you need it.</p></article>
+        <article><h3>Make yourself at home.</h3><p>Choose English or Simplified Chinese, adjust background transparency, and reopen at the latest item or your last position.</p></article>
+      </div>
+    </section>
+    <section class="download-section wrap" id="download" aria-labelledby="download-title">
+      <div class="download-box"><div><img src="assets/icon.svg" width="58" height="58" alt="" loading="lazy"><p class="eyebrow">COPYRAIL 1.0</p><h2 id="download-title">Good things<br>are worth keeping.</h2><p>Give your clipboard a little more room.</p></div><div class="download-actions"><a class="button button-light" href="https://github.com/AresNing/CopyRail/releases/download/v1.0.0/CopyRail_1.0.0_aarch64.dmg">Download for Mac <span aria-hidden="true">↓</span></a><p>Apple Silicon · macOS 13+ · DMG, 12.8 MB</p><a class="text-link" href="https://github.com/AresNing/CopyRail/releases/tag/v1.0.0">ZIP, checksums & release notes <span aria-hidden="true">↗</span></a><p class="signing-note">Not Developer ID-signed or notarized.<br><a href="https://github.com/AresNing/CopyRail/blob/main/docs/installation.md">Read the first-launch guide</a> before opening.</p></div></div>
+    </section>
+    <section class="faq wrap" aria-labelledby="faq-title">
+      <h2 id="faq-title">A few things to know.</h2>
+      <div>
+        <details><summary>Which Macs are supported?</summary><p>The 1.0 download is for Apple Silicon Macs (M1 or later) running macOS 13 or later. Intel, Windows and Linux installers are not included.</p></details>
+        <details><summary>What should I expect on first launch?</summary><p>CopyRail is locally signed, without Apple Developer ID signing or notarization. macOS may ask you to allow it in Privacy & Security. Follow the <a href="https://github.com/AresNing/CopyRail/blob/main/docs/installation.md">installation guide</a>. Direct paste also needs Accessibility permission; copying an item does not.</p></details>
+        <details><summary>Does my clipboard sync to the cloud?</summary><p>No. Version 1.0 stores history locally and does not include multi-device sync. History and exported backups are not encrypted by the app. You can pause capture or exclude apps in Settings.</p></details>
+        <details><summary>Is CopyRail free and open source?</summary><p>Yes. Project-owned code and graphics are licensed under Apache-2.0. You can <a href="https://github.com/AresNing/CopyRail">read the source</a>, build it yourself and contribute. Third-party components keep their own licenses.</p></details>
+        <details><summary>Where can I report an issue?</summary><p>Use <a href="https://github.com/AresNing/CopyRail/issues">GitHub Issues</a> for feedback and bug reports. Cross-app behavior and compatibility are still being expanded; the <a href="https://github.com/AresNing/CopyRail/blob/main/docs/verification.md">verification record</a> lists what has been tested and what remains open.</p></details>
+      </div>
+    </section>
+  </main>
+  <footer class="footer wrap"><a class="brand" href="./"><img src="assets/icon.svg" width="25" height="25" alt="">CopyRail</a><p>© 2026 CopyRail contributors</p><nav aria-label="Footer navigation"><a href="https://github.com/AresNing/CopyRail">GitHub</a><a href="https://github.com/AresNing/CopyRail/blob/main/LICENSE">License</a><a href="https://github.com/AresNing/CopyRail/blob/main/README.zh-CN.md" lang="zh-CN">中文文档</a></nav></footer>
+</body>
+</html>
